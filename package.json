@@ -1,0 +1,30 @@
+{
+  "name": "crms",
+  "version": "1.0.0",
+  "description": "Construction Resource Management System",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon backend/server.js",
+    "client": "cd frontend && npm start",
+    "install-all": "npm install && cd frontend && npm install",
+    "init-db": "node backend/scripts/initDatabase.js"
+  },
+  "keywords": ["crms", "construction", "management"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "concurrently": "^8.2.2"
+  }
+}
+
