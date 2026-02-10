@@ -1,0 +1,32 @@
+/* App.css - CRMS Application Styles */
+/* AdminLTE handles most styling, this file is for app-specific overrides */
+
+.App {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Ensure AdminLTE wrapper works correctly */
+.wrapper {
+  min-height: 100vh;
+}
+
+/* Fix any React-specific issues */
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Ensure modals work properly */
+.modal {
+  z-index: 1050;
+}
+
+.modal-backdrop {
+  z-index: 1040;
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+}

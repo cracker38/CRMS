@@ -1,0 +1,22 @@
+.typewriter-cursor {
+  display: inline-block;
+  animation: blink 1s infinite;
+  color: inherit;
+  margin-left: 2px;
+  font-weight: 900;
+  opacity: 0.8;
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 0.8;
+  }
+  50%, 100% {
+    opacity: 0.2;
+  }
+}
+
