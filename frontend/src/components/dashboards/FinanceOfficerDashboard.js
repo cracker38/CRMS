@@ -28,6 +28,12 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
     pendingInvoices: 0
   });
 
+  const [reportFilters, setReportFilters] = useState({
+    startDate: '',
+    endDate: '',
+    projectId: ''
+  });
+
   // Sync with prop changes from parent (sidebar clicks)
   useEffect(() => {
     if (propActiveTab !== undefined && propActiveTab !== activeTab) {
@@ -148,25 +154,94 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
     await handleApprovePayment(expenseId, 'PAID');
   };
 
+  const handleCreateInvoice = async (invoiceData) => {
+    try {
+      // Basic validation
+      if (!invoiceData.project_id) {
+        alert('Project is required');
+        return;
+      }
+      if (!invoiceData.amount || Number.isNaN(Number(invoiceData.amount))) {
+        alert('Valid amount is required');
+        return;
+      }
+      if (!invoiceData.expense_date) {
+        alert('Invoice date is required');
+        return;
+      }
+      if (!invoiceData.invoice_number || !invoiceData.invoice_number.trim()) {
+        alert('Invoice number is required');
+        return;
+      }
+
+      const payload = {
+        project_id: invoiceData.project_id,
+        category: invoiceData.category || 'SUPPLIES',
+        description: invoiceData.description || `Invoice ${invoiceData.invoice_number}`,
+        amount: parseFloat(invoiceData.amount),
+        expense_date: invoiceData.expense_date,
+        invoice_number: invoiceData.invoice_number.trim()
+      };
+
+      const response = await fetch('http://localhost:5000/api/expenses', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        alert(data.message || 'Failed to create invoice/expense');
+        return;
+      }
+
+      setShowInvoiceModal(false);
+      await fetchData();
+      alert('Invoice recorded successfully as an expense');
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      alert('Error creating invoice: ' + (error.message || 'Network error'));
+    }
+  };
+
   const handleGenerateReport = async (reportType, filters = {}) => {
     try {
-      let url = `http://localhost:5000/api/reports?type=${reportType}`;
-      if (filters.startDate) url += `&startDate=${filters.startDate}`;
-      if (filters.endDate) url += `&endDate=${filters.endDate}`;
-      if (filters.projectId) url += `&projectId=${filters.projectId}`;
+      let url = `http://localhost:5000/api/reports?type=${encodeURIComponent(reportType)}`;
+      if (filters.startDate) url += `&startDate=${encodeURIComponent(filters.startDate)}`;
+      if (filters.endDate) url += `&endDate=${encodeURIComponent(filters.endDate)}`;
+      if (filters.projectId) url += `&projectId=${encodeURIComponent(filters.projectId)}`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setReportData(data);
-        setSelectedReportType(reportType);
-        setShowReportModal(true);
-      } else {
-        alert('Failed to generate report');
+      if (!response.ok) {
+        let message = 'Failed to generate report';
+        try {
+          const error = await response.json();
+          if (error && error.message) {
+            message = error.message;
+          }
+        } catch (_) {
+          try {
+            const text = await response.text();
+            console.error('Finance report error response:', text);
+          } catch (e) {
+            // ignore
+          }
+        }
+        alert(message);
+        return;
       }
+
+      const data = await response.json();
+      setReportData(data);
+      setSelectedReportType(reportType);
+      setShowReportModal(true);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error generating report');
@@ -249,8 +324,16 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   };
 
   const formatReportDataForPDF = (reportType, data) => {
-    if (!data || data.length === 0) {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
       return { headers: ['No Data'], rows: [['No records found']] };
+    }
+
+    // If backend returned an error/message object instead of an array
+    if (!Array.isArray(data)) {
+      if (data.message) {
+        return { headers: ['Message'], rows: [[data.message]] };
+      }
+      return { headers: ['Data'], rows: [[JSON.stringify(data)]] };
     }
 
     switch (reportType) {
@@ -355,6 +438,14 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       <section className="content">
         <div className="container-fluid">
+          {loading && (
+            <div className="overlay-wrapper">
+              <div className="overlay">
+                <i className="fas fa-3x fa-sync-alt fa-spin"></i>
+                <div className="text-bold pt-2">Loading...</div>
+              </div>
+            </div>
+          )}
           {activeTab === 'overview' && (
             <div>
               <div className="row">
@@ -726,15 +817,78 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
           )}
 
           {activeTab === 'reports' && (
-            <div className="row">
-              <div className="col-md-4">
+            <>
+              <div className="row mb-3">
+                <div className="col-md-12">
+                  <div className="card card-secondary card-outline">
+                    <div className="card-header">
+                      <h3 className="card-title">
+                        <i className="fas fa-filter mr-2"></i>
+                        Report Filters
+                      </h3>
+                    </div>
+                    <div className="card-body">
+                      <div className="form-row">
+                        <div className="form-group col-md-3 col-12">
+                          <label>Start Date</label>
+                          <input
+                            type="date"
+                            className="form-control"
+                            value={reportFilters.startDate}
+                            onChange={(e) => setReportFilters({ ...reportFilters, startDate: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group col-md-3 col-12">
+                          <label>End Date</label>
+                          <input
+                            type="date"
+                            className="form-control"
+                            value={reportFilters.endDate}
+                            onChange={(e) => setReportFilters({ ...reportFilters, endDate: e.target.value })}
+                          />
+                        </div>
+                        <div className="form-group col-md-4 col-12">
+                          <label>Project (optional)</label>
+                          <select
+                            className="form-control"
+                            value={reportFilters.projectId}
+                            onChange={(e) => setReportFilters({ ...reportFilters, projectId: e.target.value })}
+                          >
+                            <option value="">All Projects</option>
+                            {projects.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group col-md-2 col-12 d-flex align-items-end">
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary btn-block"
+                            onClick={() => setReportFilters({ startDate: '', endDate: '', projectId: '' })}
+                          >
+                            Clear Filters
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-4">
                 <div className="card card-primary card-outline">
                   <div className="card-header">
                     <h3 className="card-title">Payment Approval Report</h3>
                   </div>
                   <div className="card-body">
                     <p>Generate a report of all payment approvals and rejections.</p>
-                    <button className="btn btn-primary" onClick={() => handleGenerateReport('payment-approval', {})}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleGenerateReport('payment-approval', reportFilters)}
+                    >
                       Generate Report
                     </button>
                   </div>
@@ -747,7 +901,10 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   </div>
                   <div className="card-body">
                     <p>View detailed expense tracking with categories and status.</p>
-                    <button className="btn btn-success" onClick={() => handleGenerateReport('expense-tracking', {})}>
+                    <button
+                      className="btn btn-success"
+                      onClick={() => handleGenerateReport('expense-tracking', reportFilters)}
+                    >
                       Generate Report
                     </button>
                   </div>
@@ -760,7 +917,10 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   </div>
                   <div className="card-body">
                     <p>Generate comprehensive financial statements for projects.</p>
-                    <button className="btn btn-info" onClick={() => handleGenerateReport('financial-statement', {})}>
+                    <button
+                      className="btn btn-info"
+                      onClick={() => handleGenerateReport('financial-statement', reportFilters)}
+                    >
                       Generate Report
                     </button>
                   </div>
@@ -773,7 +933,10 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   </div>
                   <div className="card-body">
                     <p>Analyze financial health and budget status of all projects.</p>
-                    <button className="btn btn-warning" onClick={() => handleGenerateReport('project-financial-health', {})}>
+                    <button
+                      className="btn btn-warning"
+                      onClick={() => handleGenerateReport('project-financial-health', reportFilters)}
+                    >
                       Generate Report
                     </button>
                   </div>
@@ -786,7 +949,10 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   </div>
                   <div className="card-body">
                     <p>Review all receipts and invoices with validation status.</p>
-                    <button className="btn btn-danger" onClick={() => handleGenerateReport('receipt-invoice-validation', {})}>
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => handleGenerateReport('receipt-invoice-validation', reportFilters)}
+                    >
                       Generate Report
                     </button>
                   </div>
@@ -799,13 +965,17 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   </div>
                   <div className="card-body">
                     <p>View all budget adjustments and modifications.</p>
-                    <button className="btn btn-secondary" onClick={() => handleGenerateReport('budget-adjustment', {})}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleGenerateReport('budget-adjustment', reportFilters)}
+                    >
                       Generate Report
                     </button>
                   </div>
                 </div>
               </div>
             </div>
+            </>
           )}
         </div>
       </section>
@@ -819,6 +989,15 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
             setSelectedExpense(null);
           }}
           onApprove={(status) => handleApprovePayment(selectedExpense.id, status)}
+        />
+      )}
+
+      {/* Invoice Modal */}
+      {showInvoiceModal && (
+        <InvoiceModal
+          projects={projects}
+          onClose={() => setShowInvoiceModal(false)}
+          onSave={handleCreateInvoice}
         />
       )}
 
@@ -914,6 +1093,132 @@ const PaymentModal = ({ expense, onClose, onApprove }) => {
   );
 };
 
+// Invoice Creation Modal Component
+const InvoiceModal = ({ projects, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    project_id: '',
+    invoice_number: '',
+    amount: '',
+    expense_date: new Date().toISOString().split('T')[0],
+    category: 'SUPPLIES',
+    description: ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <div className="modal fade show" style={{ display: 'block', zIndex: 1050 }} onClick={onClose}>
+      <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h4 className="modal-title">Add Invoice / Expense</h4>
+            <button type="button" className="close" onClick={onClose}>
+              <span>&times;</span>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div
+              className="modal-body"
+              style={{ maxHeight: '70vh', overflowY: 'auto' }}
+            >
+              <div className="alert alert-info">
+                <i className="fas fa-info-circle mr-2"></i>
+                This will create a new expense linked to a project with the provided invoice number.
+              </div>
+
+              <div className="form-group">
+                <label>Project *</label>
+                <select
+                  className="form-control"
+                  value={formData.project_id}
+                  onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                  required
+                >
+                  <option value="">Select Project</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group col-md-4">
+                  <label>Invoice # *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.invoice_number}
+                    onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
+                    placeholder="INV-001"
+                    required
+                  />
+                </div>
+                <div className="form-group col-md-4">
+                  <label>Amount *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-control"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div className="form-group col-md-4">
+                  <label>Date *</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={formData.expense_date}
+                    onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Category</label>
+                <select
+                  className="form-control"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                >
+                  <option value="SUPPLIES">Supplies</option>
+                  <option value="MATERIALS">Materials</option>
+                  <option value="SERVICES">Services</option>
+                  <option value="EQUIPMENT">Equipment</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  className="form-control"
+                  rows="3"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Short description of this invoice/expense"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-primary">
+                <i className="fas fa-save mr-1"></i>
+                Save Invoice
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
 // Report Modal Component
 const ReportModal = ({ reportType, reportData, projects, onClose, onExportPDF, onExportExcel }) => {
   const getReportTitle = (type) => {

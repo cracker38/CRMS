@@ -963,8 +963,14 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                 <div className="card-header">
                   <h3 className="card-title">
                     <i className="fas fa-shopping-cart mr-2"></i>
-                    Procurement & Financial Updates (Read-Only)
+                    Procurement & Financial Updates
                   </h3>
+                  <div className="card-tools">
+                    <small className="text-muted mr-3">
+                      You can request payments; Finance Officer approves and pays.
+                    </small>
+                    {/* A payment request flow/modal could be added here in the future */}
+                  </div>
                 </div>
               </div>
             </div>

@@ -378,6 +378,8 @@ async function getSiteSupervisorReports(reportType, userId, startDate, endDate, 
       const [activities] = await db.execute(activityQuery, activityParams);
       return activities;
     case 'site-progress':
+      // site_activities table in crms.sql does NOT have workforce_count,
+      // so we calculate progress metrics only and return 0 as total_workforce_days.
       let progressQuery = `
         SELECT 
           s.id as site_id,
@@ -388,7 +390,7 @@ async function getSiteSupervisorReports(reportType, userId, startDate, endDate, 
           AVG(sa.progress_percentage) as avg_progress,
           MIN(sa.activity_date) as first_report_date,
           MAX(sa.activity_date) as last_report_date,
-          SUM(sa.workforce_count) as total_workforce_days
+          0 as total_workforce_days
         FROM sites s
         LEFT JOIN projects p ON s.project_id = p.id
         LEFT JOIN site_activities sa ON s.id = sa.site_id AND sa.reported_by = ?
@@ -464,12 +466,13 @@ async function getSiteSupervisorReports(reportType, userId, startDate, endDate, 
       const [consumption] = await db.execute(consumptionQuery, consumptionParams);
       return consumption;
     case 'incident-safety':
+      // crms.sql uses 'incidents' column instead of 'issues_encountered'
       let incidentQuery = `
         SELECT 
           sa.id,
           sa.activity_date,
-          sa.issues_encountered,
-          sa.work_description,
+          sa.incidents as issues_encountered,
+          sa.description as work_description,
           sa.weather_conditions,
           s.name as site_name,
           p.name as project_name
@@ -477,7 +480,7 @@ async function getSiteSupervisorReports(reportType, userId, startDate, endDate, 
         LEFT JOIN sites s ON sa.site_id = s.id
         LEFT JOIN projects p ON s.project_id = p.id
         WHERE sa.reported_by = ? 
-        AND (sa.issues_encountered IS NOT NULL AND sa.issues_encountered != '')
+        AND (sa.incidents IS NOT NULL AND sa.incidents != '')
       `;
       const incidentParams = [userId];
       if (siteId) {

@@ -279,25 +279,40 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
     }
   };
 
-  const handleGenerateReport = async (reportType, filters) => {
+  const handleGenerateReport = async (reportType, filters = {}) => {
     try {
-      let url = `http://localhost:5000/api/reports?type=${reportType}`;
-      if (filters.startDate) url += `&startDate=${filters.startDate}`;
-      if (filters.endDate) url += `&endDate=${filters.endDate}`;
-      if (filters.siteId) url += `&siteId=${filters.siteId}`;
+      let url = `http://localhost:5000/api/reports?type=${encodeURIComponent(reportType)}`;
+      if (filters.startDate) url += `&startDate=${encodeURIComponent(filters.startDate)}`;
+      if (filters.endDate) url += `&endDate=${encodeURIComponent(filters.endDate)}`;
+      if (filters.siteId) url += `&siteId=${encodeURIComponent(filters.siteId)}`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setReportData(data);
-        setSelectedReportType(reportType);
-        setShowReportModal(true);
-      } else {
-        alert('Failed to generate report');
+      if (!response.ok) {
+        let message = 'Failed to generate report';
+        try {
+          const error = await response.json();
+          if (error && error.message) {
+            message = error.message;
+          }
+        } catch (_) {
+          try {
+            const text = await response.text();
+            console.error('Site supervisor report error response:', text);
+          } catch (e) {
+            // ignore
+          }
+        }
+        alert(message);
+        return;
       }
+
+      const data = await response.json();
+      setReportData(data);
+      setSelectedReportType(reportType);
+      setShowReportModal(true);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error generating report');
@@ -382,8 +397,16 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   };
 
   const formatReportDataForPDF = (reportType, data) => {
-    if (!data || data.length === 0) {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
       return { headers: ['No Data'], rows: [['No records found']] };
+    }
+
+    // If backend returned an error/message object instead of an array
+    if (!Array.isArray(data)) {
+      if (data.message) {
+        return { headers: ['Message'], rows: [[data.message]] };
+      }
+      return { headers: ['Data'], rows: [[JSON.stringify(data)]] };
     }
 
     switch (reportType) {

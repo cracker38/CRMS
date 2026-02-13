@@ -37,14 +37,23 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Create expense
-router.post('/', authenticate, async (req, res) => {
+// Create expense (Project Manager or Finance Officer)
+router.post('/', authenticate, authorize('PROJECT_MANAGER', 'FINANCE_OFFICER'), async (req, res) => {
   try {
     const { project_id, category, description, amount, expense_date, invoice_number } = req.body;
     
+    if (!project_id || !category || !amount || !expense_date) {
+      return res.status(400).json({ message: 'Project, category, amount and date are required' });
+    }
+
+    const numericAmount = parseFloat(amount);
+    if (Number.isNaN(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be a positive number' });
+    }
+
     const [result] = await db.execute(
       'INSERT INTO expenses (project_id, category, description, amount, expense_date, invoice_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [project_id, category, description, amount, expense_date, invoice_number, req.user.id]
+      [project_id, category, description || null, numericAmount, expense_date, invoice_number || null, req.user.id]
     );
     
     res.status(201).json({ message: 'Expense created successfully', expenseId: result.insertId });
