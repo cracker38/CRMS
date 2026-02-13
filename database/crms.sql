@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 10, 2026 at 02:07 PM
+-- Generation Time: Feb 13, 2026 at 03:41 PM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -38,6 +38,13 @@ CREATE TABLE `attendance` (
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `attendance`
+--
+
+INSERT INTO `attendance` (`id`, `employee_id`, `site_id`, `date`, `check_in`, `check_out`, `hours_worked`, `notes`, `created_at`) VALUES
+(1, 1, 2, '2026-02-13', '15:04:00', '15:05:00', 8.00, NULL, '2026-02-13 13:00:42');
 
 -- --------------------------------------------------------
 
@@ -150,7 +157,42 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `table_name`, `record_id`, 
 (85, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-10 10:25:49'),
 (86, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-10 10:28:12'),
 (87, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-10 12:14:12'),
-(88, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-10 12:41:55');
+(88, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-10 12:41:55'),
+(89, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-10 13:32:09'),
+(90, 1, 'CREATE_USER', 'users', 7, NULL, '{\"email\":\"sylviaa@gmail.com\",\"first_name\":\"DUKUZUMUREMYI\",\"last_name\":\"Elias\",\"role\":\"SITE_SUPERVISOR\",\"status\":\"ACTIVE\"}', NULL, NULL, '2026-02-11 09:09:33'),
+(91, 1, 'UPDATE_USER', 'users', 7, '{\"email\":\"sylviaa@gmail.com\",\"first_name\":\"DUKUZUMUREMYI\",\"last_name\":\"Elias\",\"role\":\"SITE_SUPERVISOR\",\"status\":\"ACTIVE\"}', '{\"id\":7,\"email\":\"sylviaa@gmail.com\",\"first_name\":\"DUKUZUMUREMYI\",\"last_name\":\"Elias\",\"role\":\"SITE_SUPERVISOR\",\"status\":\"INACTIVE\",\"created_at\":\"2026-02-11T09:09:33.000Z\"}', NULL, NULL, '2026-02-11 09:09:50'),
+(92, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-12 09:26:29'),
+(93, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-12 09:43:43'),
+(94, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-12 09:47:58'),
+(95, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-12 13:02:46'),
+(96, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-12 14:07:33'),
+(97, 6, 'APPROVE_MATERIAL_REQUEST', 'material_requests', 1, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-02-12 16:24:30'),
+(98, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 10:25:55'),
+(99, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 10:26:45'),
+(100, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 10:51:23'),
+(101, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 10:51:50'),
+(102, 4, 'CREATE_MATERIAL', 'materials', 2, NULL, '{\"name\":\"Screw driver\",\"description\":\"Construction tools\",\"unit\":\"30pieces\",\"category\":\"Construction tools\",\"current_stock\":0,\"min_stock_level\":30,\"unit_price\":2000}', NULL, NULL, '2026-02-13 11:27:24'),
+(103, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 11:29:37'),
+(104, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 11:29:54'),
+(105, 3, 'CREATE_MATERIAL_REQUEST', 'material_requests', 2, NULL, '{\"site_id\":\"2\",\"material_id\":\"2\",\"quantity\":\"20\",\"priority\":\"HIGH\",\"notes\":\"I like it\"}', NULL, NULL, '2026-02-13 11:33:08'),
+(106, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 12:21:16'),
+(107, 1, 'CREATE_EMPLOYEE', 'employees', 1, NULL, '{\"user_id\":\"6\",\"employee_id\":\"EMP001\",\"phone\":\"0785354935\",\"address\":\"Kirehe, mahama\",\"position\":\"Mason\",\"hire_date\":\"2026-02-13\",\"status\":\"ACTIVE\"}', NULL, NULL, '2026-02-13 12:25:49'),
+(108, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 12:26:07'),
+(109, 3, 'CREATE_EQUIPMENT_REQUEST', 'equipment_requests', 1, NULL, '{\"site_id\":\"2\",\"description\":\"I like \",\"needed_from\":\"2026-02-20\",\"needed_until\":\"2026-02-26\",\"notes\":\"yes\"}', NULL, NULL, '2026-02-13 13:17:41'),
+(110, 3, 'CREATE_EQUIPMENT_REQUEST', 'equipment_requests', 2, NULL, '{\"site_id\":\"2\",\"description\":\"i like\",\"needed_from\":\"2026-02-25\",\"needed_until\":\"2026-02-28\",\"notes\":\"i like\"}', NULL, NULL, '2026-02-13 13:22:32'),
+(111, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:23:11'),
+(112, 1, 'CREATE_EQUIPMENT', 'equipment', 1, NULL, '{\"name\":\"Asset\",\"type\":\"Heavy\",\"serial_number\":\"Asset tag\",\"status\":\"AVAILABLE\",\"purchase_date\":\"2026-02-12\",\"purchase_cost\":\"30000\"}', NULL, NULL, '2026-02-13 13:23:50'),
+(113, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:24:51'),
+(114, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:25:23'),
+(115, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:25:55'),
+(116, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:27:12'),
+(117, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:29:58'),
+(118, 6, 'APPROVE_EQUIPMENT_REQUEST', 'equipment_requests', 2, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-02-13 13:30:13'),
+(119, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:33:04'),
+(120, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 13:33:27'),
+(121, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 14:32:08'),
+(122, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 14:33:35'),
+(123, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-13 14:34:00');
 
 -- --------------------------------------------------------
 
@@ -170,6 +212,13 @@ CREATE TABLE `employees` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
+--
+-- Dumping data for table `employees`
+--
+
+INSERT INTO `employees` (`id`, `user_id`, `employee_id`, `phone`, `address`, `position`, `hire_date`, `status`, `created_at`) VALUES
+(1, 6, 'EMP001', '0785354935', 'Kirehe, mahama', 'Mason', '2026-02-13', 'ACTIVE', '2026-02-13 12:25:49');
+
 -- --------------------------------------------------------
 
 --
@@ -186,6 +235,44 @@ CREATE TABLE `equipment` (
   `purchase_cost` decimal(15,2) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `equipment`
+--
+
+INSERT INTO `equipment` (`id`, `name`, `type`, `serial_number`, `status`, `purchase_date`, `purchase_cost`, `created_at`) VALUES
+(1, 'Asset', 'Heavy', 'Asset tag', 'AVAILABLE', '2026-02-12', 30000.00, '2026-02-13 13:23:50');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `equipment_requests`
+--
+
+CREATE TABLE `equipment_requests` (
+  `id` int(11) NOT NULL,
+  `site_id` int(11) NOT NULL,
+  `requested_by` int(11) NOT NULL,
+  `equipment_id` int(11) DEFAULT NULL,
+  `request_date` date NOT NULL,
+  `status` enum('PENDING','APPROVED','REJECTED','FULFILLED') DEFAULT 'PENDING',
+  `needed_from` date DEFAULT NULL,
+  `needed_until` date DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `equipment_requests`
+--
+
+INSERT INTO `equipment_requests` (`id`, `site_id`, `requested_by`, `equipment_id`, `request_date`, `status`, `needed_from`, `needed_until`, `description`, `notes`, `rejection_reason`, `approved_by`, `approved_at`, `created_at`) VALUES
+(1, 2, 3, NULL, '2026-02-13', 'PENDING', '2026-02-20', '2026-02-26', 'I like', 'yes', NULL, NULL, NULL, '2026-02-13 13:17:41'),
+(2, 2, 3, NULL, '2026-02-13', 'APPROVED', '2026-02-25', '2026-02-28', 'i like', 'i like', NULL, 6, '2026-02-13 13:30:13', '2026-02-13 13:22:32');
 
 -- --------------------------------------------------------
 
@@ -226,6 +313,13 @@ CREATE TABLE `expenses` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `expenses`
+--
+
+INSERT INTO `expenses` (`id`, `project_id`, `category`, `description`, `amount`, `expense_date`, `payment_status`, `approved_by`, `paid_by`, `invoice_number`, `receipt_path`, `created_by`, `created_at`, `updated_at`) VALUES
+(1, 2, 'SUPPLIES', 'i LIKE IT', 2000.00, '2026-02-13', 'PAID', 5, 5, 'INV1', NULL, 5, '2026-02-13 13:52:00', '2026-02-13 13:52:35');
 
 -- --------------------------------------------------------
 
@@ -269,7 +363,8 @@ CREATE TABLE `materials` (
 --
 
 INSERT INTO `materials` (`id`, `name`, `description`, `unit`, `category`, `current_stock`, `min_stock_level`, `unit_price`, `created_at`, `updated_at`) VALUES
-(1, 'Hammer', 'I like hammer', '20pieces', 'Contruction', 0.00, 1.00, 5000.00, '2026-02-09 19:41:56', '2026-02-09 19:41:56');
+(1, 'Hammer', 'I like hammer', '20pieces', 'Contruction', 0.00, 1.00, 5000.00, '2026-02-09 19:41:56', '2026-02-09 19:41:56'),
+(2, 'Screw driver', 'Construction tools', '30pieces', 'Construction tools', 0.00, 30.00, 2000.00, '2026-02-13 11:27:24', '2026-02-13 11:27:24');
 
 -- --------------------------------------------------------
 
@@ -297,7 +392,8 @@ CREATE TABLE `material_requests` (
 --
 
 INSERT INTO `material_requests` (`id`, `site_id`, `requested_by`, `material_id`, `quantity`, `status`, `approved_by`, `approved_at`, `notes`, `created_at`, `priority`, `rejection_reason`) VALUES
-(1, 2, 3, 1, 10.00, 'PENDING', NULL, NULL, 'I like it', '2026-02-09 21:55:42', 'HIGH', NULL);
+(1, 2, 3, 1, 10.00, 'APPROVED', 6, '2026-02-12 16:24:30', 'I like it', '2026-02-09 21:55:42', 'HIGH', NULL),
+(2, 2, 3, 2, 20.00, 'PENDING', NULL, NULL, 'I like it', '2026-02-13 11:33:08', 'HIGH', NULL);
 
 -- --------------------------------------------------------
 
@@ -465,6 +561,13 @@ CREATE TABLE `site_activities` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
+--
+-- Dumping data for table `site_activities`
+--
+
+INSERT INTO `site_activities` (`id`, `site_id`, `reported_by`, `activity_date`, `progress_percentage`, `description`, `photos_path`, `weather_conditions`, `incidents`, `created_at`) VALUES
+(1, 2, 3, '2026-02-13', 29.00, 'Summary', '[\"/uploads/site-photos/site-1770983722463-678807247.jpeg\"]', 'SUNNY', 'Record', '2026-02-13 11:55:22');
+
 -- --------------------------------------------------------
 
 --
@@ -578,6 +681,14 @@ ALTER TABLE `employees`
 --
 ALTER TABLE `equipment`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `equipment_requests`
+--
+ALTER TABLE `equipment_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `site_id` (`site_id`),
+  ADD KEY `requested_by` (`requested_by`);
 
 --
 -- Indexes for table `equipment_usage`
@@ -709,25 +820,31 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `attendance`
 --
 ALTER TABLE `attendance`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=89;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=124;
 
 --
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `equipment`
 --
 ALTER TABLE `equipment`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `equipment_requests`
+--
+ALTER TABLE `equipment_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `equipment_usage`
@@ -739,7 +856,7 @@ ALTER TABLE `equipment_usage`
 -- AUTO_INCREMENT for table `expenses`
 --
 ALTER TABLE `expenses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `inventory_transactions`
@@ -751,13 +868,13 @@ ALTER TABLE `inventory_transactions`
 -- AUTO_INCREMENT for table `materials`
 --
 ALTER TABLE `materials`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `material_requests`
 --
 ALTER TABLE `material_requests`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `notifications`
@@ -799,7 +916,7 @@ ALTER TABLE `sites`
 -- AUTO_INCREMENT for table `site_activities`
 --
 ALTER TABLE `site_activities`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `suppliers`
@@ -817,7 +934,7 @@ ALTER TABLE `tasks`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- Constraints for dumped tables
@@ -841,6 +958,13 @@ ALTER TABLE `audit_logs`
 --
 ALTER TABLE `employees`
   ADD CONSTRAINT `employees_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `equipment_requests`
+--
+ALTER TABLE `equipment_requests`
+  ADD CONSTRAINT `equipment_requests_ibfk_1` FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `equipment_requests_ibfk_2` FOREIGN KEY (`requested_by`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `equipment_usage`
