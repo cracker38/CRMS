@@ -16,6 +16,8 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [materials, setMaterials] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [selectedAlert, setSelectedAlert] = useState(null);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -159,28 +161,54 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
   const fetchAlerts = async () => {
     try {
-      const mockAlerts = [
-        {
-          id: 1,
-          type: 'HIGH',
-          title: 'Multiple Failed Login Attempts',
-          message: 'User john@example.com has 5 failed login attempts in the last hour',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          category: 'SECURITY'
-        },
-        {
-          id: 2,
-          type: 'MEDIUM',
-          title: 'Unusual Expense Pattern',
-          message: 'Project "Building A" shows expenses 150% above average',
-          timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-          category: 'FRAUD'
+      const response = await fetch('http://localhost:5000/api/admin/virtual-auditor/alerts', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      ];
-      setAlerts(mockAlerts);
+      }).catch(() => null);
+
+      if (!response || !response.ok) {
+        setAlerts([]);
+        return;
+      }
+
+      const rawData = await response.json().catch(() => []);
+      if (!Array.isArray(rawData)) {
+        setAlerts([]);
+        return;
+      }
+
+      // Normalize backend data shape to what the UI expects
+      const normalized = rawData.map((alert, index) => ({
+        id:
+          alert.id ||
+          alert.userId ||
+          alert.projectId ||
+          `${alert.type || 'INFO'}-${index}`,
+        type: alert.type || 'LOW',
+        category: alert.category || 'GENERAL',
+        title: alert.title || 'System Alert',
+        message: alert.message || alert.description || '',
+        timestamp: alert.timestamp || alert.created_at || new Date(),
+        userId: alert.userId,
+        projectId: alert.projectId
+      }));
+
+      setAlerts(normalized);
     } catch (error) {
       console.error('Error fetching alerts:', error);
+      setAlerts([]);
     }
+  };
+
+  const handleDismissAlert = (id) => {
+    setAlerts(prev => prev.filter(alert => alert.id !== id));
+  };
+
+  const handleInvestigateAlert = (alert) => {
+    setSelectedAlert(alert);
+    setShowAlertModal(true);
   };
 
   const calculateSystemHealth = (users, projects, expenses) => {
@@ -571,7 +599,7 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   return (
     <div className="content-wrapper">
       <div className="content-header">
-        <div className="container-fluid">
+        <div className="container-fluid responsive-container">
           <div className="row mb-2">
             <div className="col-sm-6">
               <h1 className="m-0">
@@ -585,7 +613,7 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       </div>
 
       <section className="content">
-        <div className="container-fluid">
+        <div className="container-fluid responsive-container">
       {loading && (
         <div className="overlay-wrapper">
           <div className="overlay">
@@ -1391,37 +1419,80 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         )}
 
       {/* Virtual Auditor Tab */}
-        {activeTab === 'auditor' && (
+      {activeTab === 'auditor' && (
         <div className="card card-danger card-outline">
-          <div className="card-header">
-            <h3 className="card-title">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h3 className="card-title mb-0">
               <i className="fas fa-shield-alt mr-2"></i>
               Virtual Auditor - Fraud & Irregular Access Detection
               {alerts.filter(a => a.type === 'HIGH').length > 0 && (
-                <span className="badge badge-danger ml-2">{alerts.filter(a => a.type === 'HIGH').length} High Priority</span>
+                <span className="badge badge-danger ml-2">
+                  {alerts.filter(a => a.type === 'HIGH').length} High Priority
+                </span>
               )}
             </h3>
-              </div>
+          </div>
           <div className="card-body">
-            {alerts.length > 0 ? alerts.map(alert => (
-              <div key={alert.id} className={`alert alert-${alert.type === 'HIGH' ? 'danger' : alert.type === 'MEDIUM' ? 'warning' : 'info'} alert-dismissible`}>
-                <h5><i className={`icon fas fa-${alert.type === 'HIGH' ? 'exclamation-triangle' : 'info-circle'}`}></i> {alert.title}</h5>
-                <p>{alert.message}</p>
-                <small className="text-muted">{new Date(alert.timestamp).toLocaleString()}</small>
-                <div className="mt-2">
-                  <button className="btn btn-sm btn-primary mr-2">Investigate</button>
-                  <button className="btn btn-sm btn-secondary">Dismiss</button>
-              </div>
-            </div>
-            )) : (
+            {alerts.length > 0 ? (
+              alerts.map(alert => (
+                <div
+                  key={alert.id}
+                  className={`alert alert-${
+                    alert.type === 'HIGH' ? 'danger' : alert.type === 'MEDIUM' ? 'warning' : 'info'
+                  } alert-dismissible`}
+                >
+                  <h5>
+                    <i
+                      className={`icon fas fa-${
+                        alert.type === 'HIGH' ? 'exclamation-triangle' : 'info-circle'
+                      }`}
+                    ></i>{' '}
+                    {alert.title}
+                  </h5>
+                  <p>{alert.message}</p>
+                  <small className="text-muted d-block mb-2">
+                    {new Date(alert.timestamp).toLocaleString()}
+                  </small>
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary mr-2"
+                      onClick={() => handleInvestigateAlert(alert)}
+                    >
+                      Investigate
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => handleDismissAlert(alert.id)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
               <div className="alert alert-info">
-                <h5><i className="icon fas fa-info"></i> No Alerts</h5>
+                <h5>
+                  <i className="icon fas fa-info"></i> No Alerts
+                </h5>
                 <p>No security alerts at this time. System is operating normally.</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-          </div>
-        )}
+        </div>
+      )}
+
+      {/* Alert Investigation Modal */}
+      {showAlertModal && selectedAlert && (
+        <AlertModal
+          alert={selectedAlert}
+          onClose={() => {
+            setShowAlertModal(false);
+            setSelectedAlert(null);
+          }}
+        />
+      )}
 
       {/* User Modal */}
       {showUserModal && (
@@ -1458,6 +1529,117 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         </div>
       </section>
     </div>
+  );
+};
+
+const AlertModal = ({ alert, onClose }) => {
+  if (!alert) return null;
+
+  const severityLabel =
+    alert.type === 'HIGH' ? 'High Priority Security Alert' :
+    alert.type === 'MEDIUM' ? 'Medium Risk Alert' :
+    'Informational Alert';
+
+  const severityClass =
+    alert.type === 'HIGH' ? 'badge-danger' :
+    alert.type === 'MEDIUM' ? 'badge-warning' :
+    'badge-info';
+
+  return (
+    <>
+      <div
+        className="modal-backdrop fade show"
+        onClick={onClose}
+        style={{
+          zIndex: 1040,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}
+      ></div>
+      <div
+        className="modal fade show"
+        style={{
+          display: 'block',
+          zIndex: 1050,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          overflow: 'auto'
+        }}
+        tabIndex="-1"
+        role="dialog"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
+        <div
+          className="modal-dialog modal-lg"
+          role="document"
+          style={{ margin: '30px auto', maxWidth: '700px' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="modal-content">
+            <div className="modal-header bg-danger">
+              <h4 className="modal-title text-white">
+                <i className="fas fa-search mr-2"></i>
+                Alert Investigation
+              </h4>
+              <button
+                type="button"
+                className="close text-white"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div className="modal-body">
+              <h5 className="mb-2">
+                {alert.title}{' '}
+                <span className={`badge ${severityClass} ml-2`}>{severityLabel}</span>
+              </h5>
+              <p className="mb-3">{alert.message}</p>
+              <p className="text-muted mb-4">
+                Detected at: {new Date(alert.timestamp).toLocaleString()}
+              </p>
+              <h6>Recommended next steps</h6>
+              <ul className="mb-0">
+                {alert.category === 'SECURITY' && (
+                  <>
+                    <li>Review recent login activity for the involved user and IP addresses.</li>
+                    <li>Temporarily lock the account if behavior appears suspicious.</li>
+                    <li>Notify the user and request password reset if necessary.</li>
+                  </>
+                )}
+                {(alert.category === 'FINANCIAL' || alert.category === 'FRAUD') && (
+                  <>
+                    <li>Compare flagged expenses with historical averages for this project.</li>
+                    <li>Verify supporting documents (invoices, purchase orders, approvals).</li>
+                    <li>Escalate to finance or compliance team if anomalies persist.</li>
+                  </>
+                )}
+                {!alert.category && (
+                  <li>Review the underlying transaction or activity associated with this alert.</li>
+                )}
+              </ul>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 

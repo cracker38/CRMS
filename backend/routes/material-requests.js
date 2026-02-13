@@ -69,7 +69,7 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
     }
     
     await db.execute(
-      'UPDATE material_requests SET status = ?, approved_by = ?, approved_at = NOW(), updated_at = NOW() WHERE id = ?',
+      'UPDATE material_requests SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
       ['APPROVED', req.user.id, req.params.id]
     );
     
@@ -109,7 +109,7 @@ router.put('/:id/reject', authenticate, authorize('PROJECT_MANAGER'), async (req
     }
     
     await db.execute(
-      'UPDATE material_requests SET status = ?, approved_by = ?, rejection_reason = ?, approved_at = NOW(), updated_at = NOW() WHERE id = ?',
+      'UPDATE material_requests SET status = ?, approved_by = ?, rejection_reason = ?, approved_at = NOW() WHERE id = ?',
       ['REJECTED', req.user.id, reason || null, req.params.id]
     );
     

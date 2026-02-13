@@ -26,6 +26,7 @@ app.use('/api/site-activities', require('./routes/site-activities'));
 app.use('/api/equipment', require('./routes/equipment'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/sites', require('./routes/sites'));
 app.use('/api/admin', require('./routes/admin'));
 
 // Serve uploaded files

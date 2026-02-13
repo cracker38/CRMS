@@ -11,30 +11,42 @@ router.get('/', authenticate, async (req, res) => {
     try {
       await db.execute('SELECT 1 FROM equipment LIMIT 1');
     } catch (tableError) {
-      // Return placeholder data structure
+      // Table doesn't exist yet – treat as no equipment configured
       return res.json([]);
     }
 
-    let query = `
-      SELECT e.*, 
-        s.name as site_name,
-        p.name as project_name
+    // Try to include site/project info if schema supports it
+    let baseQuery = `
+      SELECT e.*,
+        s.name AS site_name,
+        p.name AS project_name
       FROM equipment e
       LEFT JOIN sites s ON e.site_id = s.id
       LEFT JOIN projects p ON s.project_id = p.id
     `;
-    
+
+    const params = [];
+
     if (req.user.role === 'SITE_SUPERVISOR') {
-      query += ' WHERE e.site_id IN (SELECT id FROM sites WHERE supervisor_id = ?)';
+      baseQuery += ' WHERE s.supervisor_id = ?';
+      params.push(req.user.id);
     }
-    
-    query += ' ORDER BY e.name';
-    
-    const [equipment] = req.user.role === 'SITE_SUPERVISOR'
-      ? await db.execute(query, [req.user.id])
-      : await db.execute(query);
-    
-    res.json(equipment);
+
+    baseQuery += ' ORDER BY e.name';
+
+    try {
+      const [equipment] = await db.execute(baseQuery, params);
+      return res.json(equipment);
+    } catch (joinError) {
+      // If schema doesn't have site_id / project relation yet, fall back to plain equipment list
+      if (joinError.code === 'ER_BAD_FIELD_ERROR') {
+        const [equipment] = await db.execute(
+          'SELECT e.*, NULL AS site_name, NULL AS project_name FROM equipment e ORDER BY e.name'
+        );
+        return res.json(equipment);
+      }
+      throw joinError;
+    }
   } catch (error) {
     console.error('Get equipment error:', error);
     res.status(500).json({ message: 'Server error' });

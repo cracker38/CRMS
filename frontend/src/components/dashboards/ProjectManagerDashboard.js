@@ -17,10 +17,12 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [siteSupervisors, setSiteSupervisors] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [equipment, setEquipment] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [showSiteModal, setShowSiteModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -63,6 +65,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       let projectsData = [];
       let expensesData = [];
       let mrData = [];
+      let sitesData = [];
 
       // Fetch projects
       try {
@@ -130,7 +133,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         console.log('Error fetching tasks:', e);
       }
 
-      // Fetch employees and attendance for workforce monitoring
+      // Fetch employees for workforce monitoring
       try {
         const employeesRes = await fetch('http://localhost:5000/api/employees', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -141,6 +144,32 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         }
       } catch (e) {
         console.log('Error fetching employees:', e);
+      }
+
+      // Fetch equipment for monitoring (read-only)
+      try {
+        const equipmentRes = await fetch('http://localhost:5000/api/equipment', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (equipmentRes.ok) {
+          const equipmentData = await equipmentRes.json();
+          setEquipment(Array.isArray(equipmentData) ? equipmentData : []);
+        }
+      } catch (e) {
+        console.log('Error fetching equipment:', e);
+      }
+
+      // Fetch sites (for this project manager)
+      try {
+        const sitesRes = await fetch('http://localhost:5000/api/sites', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (sitesRes.ok) {
+          sitesData = await sitesRes.json();
+          setSites(sitesData);
+        }
+      } catch (e) {
+        console.log('Error fetching sites:', e);
       }
 
       // Calculate stats using the data we already fetched
@@ -154,7 +183,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         totalBudget,
         spentAmount,
         pendingRequests: mrData.filter(r => r.status === 'PENDING').length,
-        totalSites: projectsData.reduce((sum, p) => sum + (parseInt(p.site_count) || 0), 0)
+        totalSites: sitesData.length || projectsData.reduce((sum, p) => sum + (parseInt(p.site_count) || 0), 0)
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -171,6 +200,36 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const handleEditProject = (project) => {
     setEditingProject(project);
     setShowProjectModal(true);
+  };
+
+  const handleCreateSite = () => {
+    setShowSiteModal(true);
+  };
+
+  const handleSaveSite = async (siteData) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/sites', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(siteData)
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setShowSiteModal(false);
+        fetchData();
+        alert('Site created successfully');
+      } else {
+        alert(data.message || 'Failed to create site');
+      }
+    } catch (error) {
+      console.error('Error creating site:', error);
+      alert('Error creating site');
+    }
   };
 
   const handleSaveProject = async (projectData) => {
@@ -314,10 +373,20 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
     return budget > 0 ? (spent / budget * 100) : 0;
   };
 
+  const equipmentSummary = useMemo(() => {
+    if (!Array.isArray(equipment) || equipment.length === 0) {
+      return { total: 0, inUse: 0, maintenance: 0 };
+    }
+    const total = equipment.length;
+    const inUse = equipment.filter(e => e.status === 'IN_USE' || e.status === 'IN USE').length;
+    const maintenance = equipment.filter(e => e.status === 'MAINTENANCE').length;
+    return { total, inUse, maintenance };
+  }, [equipment]);
+
   return (
     <div className="content-wrapper">
       <div className="content-header">
-        <div className="container-fluid">
+        <div className="container-fluid responsive-container">
           <div className="row mb-2">
             <div className="col-sm-6">
               <h1 className="m-0">
@@ -331,7 +400,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       </div>
 
       <section className="content">
-        <div className="container-fluid">
+        <div className="container-fluid responsive-container">
       {loading && (
         <div className="overlay-wrapper">
           <div className="overlay">
@@ -920,38 +989,95 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   </h3>
                 </div>
                 <div className="card-body">
-                  <div className="alert alert-info">
-                    <i className="fas fa-info-circle mr-2"></i>
-                    Equipment tracking will be available once equipment management module is implemented.
-                  </div>
-                  <div className="row">
+                  <div className="row mb-3">
                     <div className="col-md-4">
                       <div className="info-box">
-                        <span className="info-box-icon bg-warning"><i className="fas fa-tools"></i></span>
+                        <span className="info-box-icon bg-warning">
+                          <i className="fas fa-tools"></i>
+                        </span>
                         <div className="info-box-content">
                           <span className="info-box-text">Total Equipment</span>
-                          <span className="info-box-number">-</span>
+                          <span className="info-box-number">
+                            {equipmentSummary.total}
+                          </span>
                         </div>
                       </div>
                     </div>
                     <div className="col-md-4">
                       <div className="info-box">
-                        <span className="info-box-icon bg-success"><i className="fas fa-check-circle"></i></span>
+                        <span className="info-box-icon bg-success">
+                          <i className="fas fa-check-circle"></i>
+                        </span>
                         <div className="info-box-content">
                           <span className="info-box-text">In Use</span>
-                          <span className="info-box-number">-</span>
+                          <span className="info-box-number">
+                            {equipmentSummary.inUse}
+                          </span>
                         </div>
                       </div>
                     </div>
                     <div className="col-md-4">
                       <div className="info-box">
-                        <span className="info-box-icon bg-info"><i className="fas fa-wrench"></i></span>
+                        <span className="info-box-icon bg-info">
+                          <i className="fas fa-wrench"></i>
+                        </span>
                         <div className="info-box-content">
                           <span className="info-box-text">Maintenance</span>
-                          <span className="info-box-number">-</span>
+                          <span className="info-box-number">
+                            {equipmentSummary.maintenance}
+                          </span>
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped">
+                      <thead>
+                        <tr>
+                          <th>Equipment</th>
+                          <th>Type</th>
+                          <th>Site</th>
+                          <th>Project</th>
+                          <th>Status</th>
+                          <th>Last Used</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {equipment && equipment.length > 0 ? (
+                          equipment.map(item => (
+                            <tr key={item.id}>
+                              <td><strong>{item.name || 'N/A'}</strong></td>
+                              <td>{item.type || 'N/A'}</td>
+                              <td>{item.site_name || 'N/A'}</td>
+                              <td>{item.project_name || 'N/A'}</td>
+                              <td>
+                                <span className={`badge badge-${
+                                  item.status === 'IN_USE' || item.status === 'IN USE'
+                                    ? 'success'
+                                    : item.status === 'MAINTENANCE'
+                                    ? 'warning'
+                                    : 'secondary'
+                                }`}>
+                                  {item.status || 'N/A'}
+                                </span>
+                              </td>
+                              <td>
+                                {item.last_used
+                                  ? new Date(item.last_used).toLocaleDateString()
+                                  : 'N/A'}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="6" className="text-center text-muted">
+                              No equipment configured yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -1140,6 +1266,79 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         </>
       )}
 
+      {/* Sites Tab */}
+      {activeTab === 'sites' && (
+        <div className="card card-info card-outline">
+          <div className="card-header">
+            <h3 className="card-title">
+              <i className="fas fa-building mr-2"></i>
+              Sites
+            </h3>
+            <div className="card-tools">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={handleCreateSite}
+              >
+                <i className="fas fa-plus mr-1"></i> Create Site
+              </button>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="table-responsive">
+              <table className="table table-bordered table-striped table-hover">
+                <thead className="thead-light">
+                  <tr>
+                    <th>Site Name</th>
+                    <th>Project</th>
+                    <th>Location</th>
+                    <th>Supervisor</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sites.length > 0 ? (
+                    sites.map(site => (
+                      <tr key={site.id}>
+                        <td><strong>{site.name || 'N/A'}</strong></td>
+                        <td>{site.project_name || 'N/A'}</td>
+                        <td>{site.location || 'N/A'}</td>
+                        <td>
+                          {site.supervisor_first_name
+                            ? `${site.supervisor_first_name} ${site.supervisor_last_name || ''}`
+                            : 'Unassigned'}
+                        </td>
+                        <td>
+                          <span className={`badge badge-${site.status === 'ACTIVE' ? 'success' : 'secondary'}`}>
+                            {site.status || 'N/A'}
+                          </span>
+                        </td>
+                        <td>
+                          {site.created_at
+                            ? new Date(site.created_at).toLocaleDateString()
+                            : 'N/A'}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4">
+                        <i className="fas fa-building fa-3x text-muted mb-3"></i>
+                        <p className="text-muted mb-2">No sites found for your projects.</p>
+                        <button className="btn btn-primary btn-sm" onClick={handleCreateSite}>
+                          <i className="fas fa-plus mr-1"></i> Create Site
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Project Modal */}
       {showProjectModal && (
         <ProjectModal
@@ -1180,9 +1379,218 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
           onSubmit={handleGenerateReportSubmit}
         />
         )}
+
+      {/* Site Modal */}
+      {showSiteModal && (
+        <SiteModal
+          projects={projects}
+          token={token}
+          onClose={() => setShowSiteModal(false)}
+          onSave={handleSaveSite}
+        />
+      )}
       </div>
       </section>
     </div>
+  );
+};
+
+// Site Modal Component
+const SiteModal = ({ projects, token, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    project_id: '',
+    name: '',
+    location: '',
+    supervisor_id: '',
+    status: 'ACTIVE'
+  });
+  const [supervisors, setSupervisors] = useState([]);
+  const [loadingSupervisors, setLoadingSupervisors] = useState(false);
+
+  const handleProjectChange = async (e) => {
+    const projectId = e.target.value;
+    setFormData(prev => ({ ...prev, project_id: projectId, supervisor_id: '' }));
+
+    if (!projectId) {
+      setSupervisors([]);
+      return;
+    }
+
+    try {
+      setLoadingSupervisors(true);
+      const res = await fetch(`http://localhost:5000/api/tasks/site-supervisors/${projectId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSupervisors(Array.isArray(data) ? data : []);
+      } else {
+        setSupervisors([]);
+      }
+    } catch (error) {
+      console.error('Error loading site supervisors:', error);
+      setSupervisors([]);
+    } finally {
+      setLoadingSupervisors(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.project_id || !formData.name.trim()) {
+      alert('Project and site name are required');
+      return;
+    }
+    onSave(formData);
+  };
+
+  return (
+    <>
+      <div
+        className="modal-backdrop fade show"
+        onClick={onClose}
+        style={{
+          zIndex: 1040,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}
+      ></div>
+      <div
+        className="modal fade show"
+        style={{
+          display: 'block',
+          zIndex: 1050,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          overflow: 'auto'
+        }}
+        tabIndex="-1"
+        role="dialog"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
+        <div
+          className="modal-dialog modal-lg"
+          role="document"
+          style={{ margin: '30px auto', maxWidth: '600px' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="modal-content">
+            <div className="modal-header bg-info">
+              <h4 className="modal-title text-white">
+                <i className="fas fa-building mr-2"></i>
+                Create Site
+              </h4>
+              <button type="button" className="close text-white" onClick={onClose}>
+                <span>&times;</span>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Project *</label>
+                  <select
+                    className="form-control"
+                    value={formData.project_id}
+                    onChange={handleProjectChange}
+                    required
+                  >
+                    <option value="">Select Project</option>
+                    {projects.map(project => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Site Name *</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Location</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.location}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="e.g., District / Sector / Village"
+                  />
+                </div>
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="form-group">
+                      <label>Supervisor (optional)</label>
+                      <select
+                        className="form-control"
+                        value={formData.supervisor_id}
+                        onChange={(e) =>
+                          setFormData(prev => ({ ...prev, supervisor_id: e.target.value }))
+                        }
+                        disabled={loadingSupervisors || !formData.project_id}
+                      >
+                        <option value="">
+                          {formData.project_id
+                            ? loadingSupervisors
+                              ? 'Loading supervisors...'
+                              : 'Select Supervisor'
+                            : 'Select a project first'}
+                        </option>
+                        {supervisors.map(sup => (
+                          <option key={sup.id} value={sup.id}>
+                            {sup.first_name} {sup.last_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="form-group">
+                      <label>Status</label>
+                      <select
+                        className="form-control"
+                        value={formData.status}
+                        onChange={(e) =>
+                          setFormData(prev => ({ ...prev, status: e.target.value }))
+                        }
+                      >
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={onClose}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-info">
+                  <i className="fas fa-save mr-1"></i>
+                  Create Site
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 

@@ -185,7 +185,7 @@
 
 /* Remove white space from content-header */
 .content-header {
-  padding: 0.5rem 0 !important;
+  padding: 0.25rem 0 !important;
   margin-bottom: 0 !important;
 }
 
@@ -200,12 +200,37 @@
 
 /* Reduce padding in content section */
 .content {
-  padding: 0.5rem 0 !important;
+  padding: 0.25rem 0 !important;
 }
 
 .content .container-fluid {
   padding-left: 1rem;
   padding-right: 1rem;
+}
+
+/* Responsive container helper for dashboard content */
+.responsive-container {
+  width: 100%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (max-width: 992px) {
+  .responsive-container {
+    max-width: 100%;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .responsive-container {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
 }
 
 /* Card enhancements */

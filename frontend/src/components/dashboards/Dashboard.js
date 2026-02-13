@@ -107,6 +107,7 @@ const Dashboard = () => {
     } else if (user?.role === 'PROJECT_MANAGER') {
       items.push(
         { id: 'projects', icon: 'fa-project-diagram', label: 'Projects' },
+        { id: 'sites', icon: 'fa-building', label: 'Sites' },
         { id: 'material-requests', icon: 'fa-clipboard-list', label: 'Material Requests' },
         { id: 'monitoring', icon: 'fa-chart-line', label: 'Monitoring' },
         { id: 'procurement', icon: 'fa-shopping-cart', label: 'Procurement & Financial' },
@@ -333,7 +334,7 @@ const Dashboard = () => {
       <div className="content-wrapper">
         {/* Content Header */}
         <div className="content-header">
-          <div className="container-fluid">
+          <div className="container-fluid responsive-container">
             <div className="row mb-2">
               <div className="col-sm-6">
                 <h1 className="m-0">Dashboard</h1>
@@ -350,7 +351,7 @@ const Dashboard = () => {
 
         {/* Main content */}
         <section className="content">
-          <div className="container-fluid">
+          <div className="container-fluid responsive-container">
             {renderDashboard()}
           </div>
         </section>
