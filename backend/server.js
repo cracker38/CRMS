@@ -24,6 +24,7 @@ app.use('/api/materials', require('./routes/materials'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/site-activities', require('./routes/site-activities'));
 app.use('/api/equipment', require('./routes/equipment'));
+app.use('/api/equipment-requests', require('./routes/equipment-requests'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/sites', require('./routes/sites'));

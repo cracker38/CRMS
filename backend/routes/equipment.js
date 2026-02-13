@@ -4,7 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get equipment usage/status
+// Get equipment list / status
 router.get('/', authenticate, async (req, res) => {
   try {
     // Check if equipment table exists
@@ -49,6 +49,51 @@ router.get('/', authenticate, async (req, res) => {
     }
   } catch (error) {
     console.error('Get equipment error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Create equipment (System Admin only)
+router.post('/', authenticate, authorize('SYSTEM_ADMIN'), async (req, res) => {
+  try {
+    const { name, type, serial_number, status, purchase_date, purchase_cost } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Equipment name is required' });
+    }
+
+    // Ensure equipment table exists
+    try {
+      await db.execute('SELECT 1 FROM equipment LIMIT 1');
+    } catch (tableError) {
+      return res.status(500).json({ message: 'Equipment table does not exist', error: tableError.message });
+    }
+
+    const [result] = await db.execute(
+      'INSERT INTO equipment (name, type, serial_number, status, purchase_date, purchase_cost) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        name.trim(),
+        type || null,
+        serial_number || null,
+        status || 'AVAILABLE',
+        purchase_date || null,
+        purchase_cost || null
+      ]
+    );
+
+    // Best-effort audit log
+    try {
+      await db.execute(
+        'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
+        [req.user.id, 'CREATE_EQUIPMENT', 'equipment', result.insertId, JSON.stringify(req.body)]
+      );
+    } catch (auditError) {
+      console.error('Audit log error (equipment):', auditError);
+    }
+
+    res.status(201).json({ message: 'Equipment created successfully', equipmentId: result.insertId });
+  } catch (error) {
+    console.error('Create equipment error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

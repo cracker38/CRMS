@@ -15,6 +15,8 @@
 /* Ensure proper layout */
 .wrapper {
   min-height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  background: linear-gradient(135deg, #0f172a 0%, #020617 40%, #0b1120 100%);
 }
 
 /* Always use full-width content; sidebar overlays on top */
@@ -45,9 +47,9 @@
   left: 0;
   height: 100vh;
   width: 260px;
-  background: linear-gradient(180deg, #111827 0%, #020617 100%);
+  background: radial-gradient(circle at top left, #1f2937 0, #020617 45%, #020617 100%);
   color: #e5e7eb;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.6);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.9);
   transform: translateX(-100%);
   transition: transform 0.3s ease;
   z-index: 1030;
@@ -113,6 +115,7 @@
   font-weight: 400;
   padding: 1rem 1rem;
   transition: all 0.3s;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.85);
 }
 
 .brand-link:hover {
@@ -122,7 +125,9 @@
 
 .brand-text {
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .brand-text i {
@@ -135,6 +140,8 @@
 .user-panel .image .img-circle {
   width: 2.1rem;
   height: 2.1rem;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.9);
 }
 
 .user-panel .info a {
@@ -149,23 +156,23 @@
 
 /* Sidebar menu active state */
 .nav-sidebar .nav-item > .nav-link {
-  transition: all 0.3s ease;
-  border-left: 3px solid transparent;
+  transition: all 0.25s ease;
+  border-radius: 999px;
+  margin: 2px 10px;
+  padding: 8px 14px;
+  border-left: 0;
 }
 
 .nav-sidebar .nav-item > .nav-link:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  border-left-color: rgba(255, 255, 255, 0.3);
+  background: radial-gradient(circle at left, rgba(59, 130, 246, 0.4), transparent 70%);
+  color: #f9fafb;
 }
 
 .nav-sidebar .nav-item > .nav-link.active {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
-  border-left-color: #fff;
-  border-left-width: 3px;
-  border-left-style: solid;
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #a855f7 100%) !important;
+  color: #f9fafb !important;
   font-weight: 600;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.55);
 }
 
 .nav-sidebar .nav-item > .nav-link.active:hover {
@@ -175,6 +182,47 @@
 /* Content area adjustments */
 .content-wrapper {
   background-color: #f4f6f9;
+  border-radius: 18px 0 0 0;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.55);
+  margin-top: 0.75rem;
+}
+
+/* Main header / top navbar */
+.main-header.navbar {
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 40%, #eef2ff 100%);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.main-header .nav-link {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.main-header .nav-link:hover {
+  color: #111827;
+}
+
+.main-header .navbar-nav .nav-item .dropdown-menu {
+  border-radius: 0.75rem;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.main-footer {
+  background: rgba(15, 23, 42, 0.98);
+  color: #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
+}
+
+.main-footer a {
+  color: #93c5fd;
+}
+
+.main-footer a:hover {
+  color: #bfdbfe;
 }
 
 /* Remove AdminLTE left shadow/edge that causes a visible strip */
@@ -185,17 +233,40 @@
 
 /* Remove white space from content-header */
 .content-header {
-  padding: 0.25rem 0 !important;
+  padding: 0.5rem 0.25rem !important;
   margin-bottom: 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .content-header .row {
   margin-bottom: 0 !important;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .content-header .container-fluid {
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 0;
+  padding-right: 0.75rem;
+}
+
+.content-header .row > [class^="col-"],
+.content-header .row > [class*=" col-"] {
+  padding-left: 0;
+}
+
+.content-header h1 {
+  font-size: 1.9rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #0ea5e9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+
+.content-header .breadcrumb {
+  font-size: 0.85rem;
+  background: transparent;
 }
 
 /* Reduce padding in content section */
@@ -204,18 +275,24 @@
 }
 
 .content .container-fluid {
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 0;
+  padding-right: 0.75rem;
+}
+
+/* When using the responsive helper, remove all left gutter so content aligns flush */
+.content .container-fluid.responsive-container {
+  padding-left: 0;
+  padding-right: 0.75rem;
 }
 
 /* Responsive container helper for dashboard content */
 .responsive-container {
   width: 100%;
-  max-width: 1400px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 @media (max-width: 992px) {
@@ -235,9 +312,11 @@
 
 /* Card enhancements */
 .card {
-  box-shadow: 0 0 1px rgba(0, 0, 0, 0.125), 0 1px 3px rgba(0, 0, 0, 0.2);
-  margin-bottom: 1rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+  margin-bottom: 1.25rem;
   border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
 }
 
 .card-outline {
@@ -270,15 +349,15 @@
 
 .card-header {
   border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-  padding: 0.75rem 1.25rem;
-  background-color: #fff;
-  border-top-left-radius: 0.25rem;
-  border-top-right-radius: 0.25rem;
+  padding: 0.9rem 1.35rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 40%, #e5e7eb 100%);
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
 }
 
 .card-header .card-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   color: #495057;
 }
@@ -294,10 +373,10 @@
 
 /* Small box enhancements */
 .small-box {
-  border-radius: 0.25rem;
-  box-shadow: 0 0 1px rgba(0, 0, 0, 0.125), 0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 0.85rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
   display: block;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
   position: relative;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -310,13 +389,13 @@
 }
 
 .small-box .inner {
-  padding: 10px;
+  padding: 16px 18px 14px;
 }
 
 .small-box .inner h3 {
-  font-size: 2.2rem;
+  font-size: 2.1rem;
   font-weight: 700;
-  margin: 0 0 10px 0;
+  margin: 0 0 8px 0;
   white-space: nowrap;
   padding: 0;
 }
@@ -327,7 +406,7 @@
 }
 
 .small-box .icon {
-  color: rgba(0, 0, 0, 0.15);
+  color: rgba(15, 23, 42, 0.12);
   z-index: 0;
   position: absolute;
   top: -10px;
@@ -342,7 +421,7 @@
 
 .small-box .small-box-footer {
   background-color: rgba(0, 0, 0, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(15, 23, 42, 0.9);
   display: block;
   padding: 3px 0;
   position: relative;
@@ -353,8 +432,26 @@
 }
 
 .small-box .small-box-footer:hover {
-  background-color: rgba(0, 0, 0, 0.15);
-  color: #fff;
+  background-color: rgba(15, 23, 42, 0.08);
+  color: #111827;
+}
+
+/* Gradient variants for stat boxes */
+.small-box.bg-info {
+  background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 40%, #2563eb 100%);
+}
+
+.small-box.bg-success {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 40%, #15803d 100%);
+}
+
+.small-box.bg-warning {
+  background: linear-gradient(135deg, #fde047 0%, #facc15 35%, #eab308 100%);
+  color: #1f2937;
+}
+
+.small-box.bg-danger {
+  background: linear-gradient(135deg, #fb7185 0%, #f97316 40%, #ef4444 100%);
 }
 
 /* Table enhancements */
@@ -737,6 +834,50 @@
     float: none;
     margin-left: 0;
     margin-top: 0.5rem;
+  }
+
+  .content-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .main-header.navbar {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .main-header .navbar-nav.ml-auto {
+    font-size: 0.85rem;
+  }
+
+  .breadcrumb {
+    display: none;
+  }
+}
+
+@media (max-width: 576px) {
+  .small-box .inner {
+    padding: 12px 14px 10px;
+  }
+
+  .small-box .inner h3 {
+    font-size: 1.5rem;
+  }
+
+  .small-box .inner p {
+    font-size: 0.85rem;
+  }
+
+  .card-header {
+    padding: 0.65rem 0.9rem;
+  }
+
+  .card-header .card-title {
+    font-size: 0.95rem;
+  }
+
+  .responsive-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 }
 

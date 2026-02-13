@@ -98,6 +98,8 @@ const Dashboard = () => {
       items.push(
         { id: 'users', icon: 'fa-users', label: 'User Management' },
         { id: 'projects', icon: 'fa-project-diagram', label: 'Projects' },
+        { id: 'employees', icon: 'fa-user-friends', label: 'Employees' },
+        { id: 'equipment', icon: 'fa-tools', label: 'Equipment' },
         { id: 'audit-logs', icon: 'fa-clipboard-list', label: 'Audit Logs' },
         { id: 'procurement', icon: 'fa-shopping-cart', label: 'Procurement' },
         { id: 'reports', icon: 'fa-file-alt', label: 'Reports' },
@@ -133,6 +135,7 @@ const Dashboard = () => {
         { id: 'purchase-orders', icon: 'fa-shopping-cart', label: 'Purchase Orders' },
         { id: 'quotations', icon: 'fa-file-alt', label: 'Quotations' },
         { id: 'suppliers', icon: 'fa-truck', label: 'Suppliers' },
+        { id: 'materials', icon: 'fa-boxes', label: 'Materials' },
         { id: 'reports', icon: 'fa-chart-bar', label: 'Reports' }
       );
     } else {
@@ -351,9 +354,7 @@ const Dashboard = () => {
 
         {/* Main content */}
         <section className="content">
-          <div className="container-fluid responsive-container">
-            {renderDashboard()}
-          </div>
+          {renderDashboard()}
         </section>
       </div>
 

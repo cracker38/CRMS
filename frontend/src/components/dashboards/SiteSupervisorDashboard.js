@@ -20,9 +20,12 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [showMaterialRequestModal, setShowMaterialRequestModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showEquipmentRequestModal, setShowEquipmentRequestModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReportType, setSelectedReportType] = useState(null);
   const [reportData, setReportData] = useState(null);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [showActivityDetailsModal, setShowActivityDetailsModal] = useState(false);
   const [stats, setStats] = useState({
     totalSites: 0,
     pendingRequests: 0,
@@ -176,14 +179,28 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         body: JSON.stringify(formData)
       });
 
-      if (response.ok) {
-        await fetchData();
-        setShowMaterialRequestModal(false);
-        alert('Material request submitted successfully');
-      } else {
-        const error = await response.json();
-        alert(error.message || 'Failed to submit material request');
+      if (!response.ok) {
+        let message = 'Failed to submit material request';
+        try {
+          const error = await response.json();
+          if (error && error.message) {
+            message = error.message;
+          }
+        } catch (_) {
+          try {
+            const text = await response.text();
+            console.error('Material request error response:', text);
+          } catch (e) {
+            // ignore
+          }
+        }
+        alert(message);
+        return;
       }
+
+      await fetchData();
+      setShowMaterialRequestModal(false);
+      alert('Material request submitted successfully');
     } catch (error) {
       console.error('Error creating material request:', error);
       alert('Error submitting material request');
@@ -233,14 +250,29 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         body: JSON.stringify(attendanceData)
       });
 
-      if (response.ok) {
-        await fetchData();
-        setShowAttendanceModal(false);
-        alert('Attendance recorded successfully');
-      } else {
-        const error = await response.json();
-        alert(error.message || 'Failed to record attendance');
+      if (!response.ok) {
+        let message = 'Failed to record attendance';
+        try {
+          const error = await response.json();
+          if (error && error.message) {
+            message = error.message;
+          }
+          console.error('Attendance API error:', error);
+        } catch (_) {
+          try {
+            const text = await response.text();
+            console.error('Attendance API error (text):', text);
+          } catch (e) {
+            // ignore
+          }
+        }
+        alert(message);
+        return;
       }
+
+      await fetchData();
+      setShowAttendanceModal(false);
+      alert('Attendance recorded successfully');
     } catch (error) {
       console.error('Error recording attendance:', error);
       alert('Error recording attendance');
@@ -650,11 +682,17 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                         <td>{activity.workforce_count || 0}</td>
                         <td>{activity.weather_conditions || 'N/A'}</td>
                         <td>
-                          {activity.photos && JSON.parse(activity.photos || '[]').length > 0 && (
-                            <span className="badge badge-info">
-                              <i className="fas fa-image"></i> {JSON.parse(activity.photos).length} photos
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-outline-primary"
+                            onClick={() => {
+                              setSelectedActivity(activity);
+                              setShowActivityDetailsModal(true);
+                            }}
+                          >
+                            <i className="fas fa-eye mr-1"></i>
+                            View
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -715,6 +753,15 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
             <div className="card">
               <div className="card-header">
                 <h3 className="card-title">Equipment Usage</h3>
+                <div className="card-tools">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setShowEquipmentRequestModal(true)}
+                  >
+                    <i className="fas fa-plus mr-1"></i>
+                    Request Equipment
+                  </button>
+                </div>
               </div>
               <div className="card-body">
                 <table className="table table-bordered table-striped">
@@ -843,6 +890,17 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         />
       )}
 
+      {/* Activity Details Modal */}
+      {showActivityDetailsModal && selectedActivity && (
+        <ActivityDetailsModal
+          activity={selectedActivity}
+          onClose={() => {
+            setShowActivityDetailsModal(false);
+            setSelectedActivity(null);
+          }}
+        />
+      )}
+
       {/* Attendance Modal */}
       {showAttendanceModal && (
         <AttendanceModal
@@ -865,6 +923,43 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
           }}
           onExportPDF={exportToPDF}
           onExportExcel={exportToExcel}
+        />
+      )}
+
+      {/* Equipment Request Modal */}
+      {showEquipmentRequestModal && (
+        <EquipmentRequestModal
+          sites={sites}
+          onClose={() => setShowEquipmentRequestModal(false)}
+          onSubmit={async (payload) => {
+            try {
+              const response = await fetch('http://localhost:5000/api/equipment-requests', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              let data = {};
+              try {
+                data = await response.json();
+              } catch (_) {
+                data = {};
+              }
+
+              if (response.ok) {
+                setShowEquipmentRequestModal(false);
+                alert('Equipment request submitted successfully');
+              } else {
+                alert(data.message || 'Failed to submit equipment request');
+              }
+            } catch (error) {
+              console.error('Error submitting equipment request:', error);
+              alert('Error submitting equipment request: ' + (error.message || 'Network error'));
+            }
+          }}
         />
       )}
     </div>
@@ -999,7 +1094,7 @@ const ActivityModal = ({ sites, onClose, onSubmit }) => {
     workforce_count: 0,
     equipment_used: '',
     issues_encountered: '',
-    weather_conditions: ''
+    weather_conditions: 'SUNNY'
   });
   const [photos, setPhotos] = useState([]);
 
@@ -1018,23 +1113,52 @@ const ActivityModal = ({ sites, onClose, onSubmit }) => {
       alert('Please select a site');
       return;
     }
+    if (!formData.activity_date) {
+      alert('Please select an activity date');
+      return;
+    }
+    if (formData.progress_percentage < 0 || formData.progress_percentage > 100) {
+      alert('Progress percentage must be between 0 and 100');
+      return;
+    }
     onSubmit(formData, photos);
   };
 
+  const weatherOptions = [
+    { value: 'SUNNY', label: 'Sunny' },
+    { value: 'PARTLY_CLOUDY', label: 'Partly Cloudy' },
+    { value: 'CLOUDY', label: 'Cloudy' },
+    { value: 'RAIN', label: 'Rain' },
+    { value: 'STORM', label: 'Storm / Lightning' },
+    { value: 'WINDY', label: 'Windy' },
+    { value: 'OTHER', label: 'Other' }
+  ];
+
   return (
     <div className="modal fade show" style={{ display: 'block', zIndex: 1050 }} onClick={onClose}>
-      <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
-          <div className="modal-header">
-            <h4 className="modal-title">Record Daily Site Activity</h4>
-            <button type="button" className="close" onClick={onClose}>
+          <div className="modal-header bg-primary text-white">
+            <h4 className="modal-title">
+              <i className="fas fa-clipboard-list mr-2"></i>
+              Record Daily Site Activity
+            </h4>
+            <button type="button" className="close text-white" onClick={onClose}>
               <span>&times;</span>
             </button>
           </div>
           <form onSubmit={handleSubmit}>
-            <div className="modal-body">
+            <div
+              className="modal-body"
+              style={{ maxHeight: '70vh', overflowY: 'auto' }}
+            >
+              <div className="alert alert-info mb-3">
+                <i className="fas fa-info-circle mr-2"></i>
+                Capture key details for today&apos;s work, progress, workforce, weather and any incidents. Attach up to 5 photos as evidence.
+              </div>
+
               <div className="row">
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <div className="form-group">
                     <label>Site *</label>
                     <select
@@ -1048,9 +1172,12 @@ const ActivityModal = ({ sites, onClose, onSubmit }) => {
                         <option key={site.id} value={site.id}>{site.name}</option>
                       ))}
                     </select>
+                    <small className="form-text text-muted">
+                      Choose the site where this activity took place.
+                    </small>
                   </div>
                 </div>
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <div className="form-group">
                     <label>Activity Date *</label>
                     <input
@@ -1060,25 +1187,37 @@ const ActivityModal = ({ sites, onClose, onSubmit }) => {
                       onChange={(e) => setFormData({ ...formData, activity_date: e.target.value })}
                       required
                     />
+                    <small className="form-text text-muted">
+                      Normally today, but you can backdate if needed.
+                    </small>
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <div className="form-group mb-1">
+                    <label className="d-flex justify-content-between align-items-center">
+                      <span>Progress Percentage</span>
+                      <span className="badge badge-pill badge-primary">
+                        {parseFloat(formData.progress_percentage || 0).toFixed(1)}%
+                      </span>
+                    </label>
+                    <input
+                      type="range"
+                      className="custom-range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={formData.progress_percentage}
+                      onChange={(e) => setFormData({ ...formData, progress_percentage: Number(e.target.value) })}
+                    />
+                    <small className="form-text text-muted">
+                      Slide to update today&apos;s completion percentage.
+                    </small>
                   </div>
                 </div>
               </div>
+
               <div className="row">
-                <div className="col-md-6">
-                  <div className="form-group">
-                    <label>Progress Percentage</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={formData.progress_percentage}
-                      onChange={(e) => setFormData({ ...formData, progress_percentage: e.target.value })}
-                      min="0"
-                      max="100"
-                      step="0.01"
-                    />
-                  </div>
-                </div>
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <div className="form-group">
                     <label>Workforce Count</label>
                     <input
@@ -1087,75 +1226,256 @@ const ActivityModal = ({ sites, onClose, onSubmit }) => {
                       value={formData.workforce_count}
                       onChange={(e) => setFormData({ ...formData, workforce_count: e.target.value })}
                       min="0"
+                      placeholder="e.g., 15"
                     />
+                    <small className="form-text text-muted">
+                      Total number of workers on site today.
+                    </small>
                   </div>
                 </div>
-              </div>
-              <div className="form-group">
-                <label>Work Description</label>
-                <textarea
-                  className="form-control"
-                  rows="3"
-                  value={formData.work_description}
-                  onChange={(e) => setFormData({ ...formData, work_description: e.target.value })}
-                  placeholder="Describe the work performed today..."
-                />
-              </div>
-              <div className="form-group">
-                <label>Equipment Used</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={formData.equipment_used}
-                  onChange={(e) => setFormData({ ...formData, equipment_used: e.target.value })}
-                  placeholder="List equipment used (comma separated)"
-                />
-              </div>
-              <div className="form-group">
-                <label>Issues Encountered</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  value={formData.issues_encountered}
-                  onChange={(e) => setFormData({ ...formData, issues_encountered: e.target.value })}
-                  placeholder="Any issues, incidents, or safety concerns..."
-                />
-              </div>
-              <div className="row">
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <div className="form-group">
                     <label>Weather Conditions</label>
-                    <input
-                      type="text"
+                    <select
                       className="form-control"
                       value={formData.weather_conditions}
                       onChange={(e) => setFormData({ ...formData, weather_conditions: e.target.value })}
-                      placeholder="e.g., Sunny, Rainy, Cloudy"
-                    />
+                    >
+                      {weatherOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <small className="form-text text-muted">
+                      Choose the dominant weather condition during work hours.
+                    </small>
                   </div>
                 </div>
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <div className="form-group">
-                    <label>Site Photos (Max 5)</label>
+                    <label>Equipment Used</label>
                     <input
-                      type="file"
+                      type="text"
                       className="form-control"
-                      accept="image/*"
-                      multiple
-                      onChange={handleFileChange}
+                      value={formData.equipment_used}
+                      onChange={(e) => setFormData({ ...formData, equipment_used: e.target.value })}
+                      placeholder="e.g., Excavator, Crane, Concrete mixer"
                     />
-                    {photos.length > 0 && (
-                      <small className="text-muted">{photos.length} photo(s) selected</small>
-                    )}
+                    <small className="form-text text-muted">
+                      List key equipment used (comma separated).
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-7">
+                  <div className="form-group">
+                    <label>Work Description</label>
+                    <textarea
+                      className="form-control"
+                      rows="4"
+                      value={formData.work_description}
+                      onChange={(e) => setFormData({ ...formData, work_description: e.target.value })}
+                      placeholder="Summarize key tasks, areas worked on, and milestones achieved today..."
+                    />
+                    <small className="form-text text-muted">
+                      Focus on measurable progress and major activities.
+                    </small>
+                  </div>
+                </div>
+                <div className="col-md-5">
+                  <div className="form-group">
+                    <label>Issues / Incidents</label>
+                    <textarea
+                      className="form-control"
+                      rows="4"
+                      value={formData.issues_encountered}
+                      onChange={(e) => setFormData({ ...formData, issues_encountered: e.target.value })}
+                      placeholder="Record safety incidents, delays, blockers, or quality concerns..."
+                    />
+                    <small className="form-text text-muted">
+                      This helps project managers react quickly to risks.
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-12">
+                  <div className="form-group mb-1">
+                    <label>Site Photos (Max 5)</label>
+                    <div className="border rounded p-3 d-flex flex-column flex-md-row align-items-md-center">
+                      <div className="mr-md-3 mb-2 mb-md-0">
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-sm"
+                          onClick={() => document.getElementById('activity-photos-input')?.click()}
+                        >
+                          <i className="fas fa-upload mr-1"></i>
+                          Select Photos
+                        </button>
+                      </div>
+                      <div className="flex-grow-1">
+                        <input
+                          id="activity-photos-input"
+                          type="file"
+                          className="d-none"
+                          accept="image/*"
+                          multiple
+                          onChange={handleFileChange}
+                        />
+                        <small className="text-muted d-block">
+                          Attach clear photos of work progress, key areas, or issues. PNG/JPG up to 5 files.
+                        </small>
+                        {photos.length > 0 && (
+                          <small className="text-success d-block mt-1">
+                            <i className="fas fa-check-circle mr-1"></i>
+                            {photos.length} photo(s) selected
+                          </small>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Record Activity</button>
+              <button type="submit" className="btn btn-primary">
+                <i className="fas fa-save mr-1"></i>
+                Record Activity
+              </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Activity Details Modal Component
+const ActivityDetailsModal = ({ activity, onClose }) => {
+  // Support both new (photos) and legacy (photos_path) schemas
+  let photoList = [];
+  try {
+    if (activity.photos) {
+      const parsed = JSON.parse(activity.photos || '[]');
+      photoList = Array.isArray(parsed) ? parsed : [];
+    } else if (activity.photos_path) {
+      const parsed = JSON.parse(activity.photos_path || '[]');
+      if (Array.isArray(parsed)) {
+        photoList = parsed;
+      } else if (typeof parsed === 'string' && parsed) {
+        photoList = [parsed];
+      }
+    }
+  } catch (e) {
+    photoList = [];
+  }
+
+  const resolvePhotoUrl = (path) => {
+    if (!path) return '';
+    // If already absolute (http/https), use as is
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+    // Ensure we always hit the backend server (port 5000) for uploads
+    const normalized = path.startsWith('/') ? path : `/${path}`;
+    return `http://localhost:5000${normalized}`;
+  };
+
+  return (
+    <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} onClick={onClose}>
+      <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">
+          <div className="modal-header bg-info text-white">
+            <h4 className="modal-title">
+              <i className="fas fa-info-circle mr-2"></i>
+              Daily Site Activity Details
+            </h4>
+            <button type="button" className="close text-white" onClick={onClose}>
+              <span>&times;</span>
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="row">
+              <div className="col-md-4">
+                <h6 className="text-muted">Date</h6>
+                <p>{activity.activity_date ? new Date(activity.activity_date).toLocaleDateString() : 'N/A'}</p>
+              </div>
+              <div className="col-md-4">
+                <h6 className="text-muted">Site</h6>
+                <p>{activity.site_name || 'N/A'}</p>
+              </div>
+              <div className="col-md-4">
+                <h6 className="text-muted">Project</h6>
+                <p>{activity.project_name || 'N/A'}</p>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="col-md-4">
+                <h6 className="text-muted">Progress %</h6>
+                <p>{activity.progress_percentage || 0}%</p>
+              </div>
+              <div className="col-md-4">
+                <h6 className="text-muted">Workforce</h6>
+                <p>{activity.workforce_count || 0}</p>
+              </div>
+              <div className="col-md-4">
+                <h6 className="text-muted">Weather</h6>
+                <p>{activity.weather_conditions || 'N/A'}</p>
+              </div>
+            </div>
+
+            <hr />
+
+            <div className="row">
+              <div className="col-md-6">
+                <h6 className="text-muted">Work Description</h6>
+                <p>{activity.work_description || activity.description || 'N/A'}</p>
+              </div>
+              <div className="col-md-6">
+                <h6 className="text-muted">Issues / Incidents</h6>
+                <p>{activity.issues_encountered || activity.incidents || 'None reported'}</p>
+              </div>
+            </div>
+
+            {activity.equipment_used && (
+              <>
+                <hr />
+                <h6 className="text-muted">Equipment Used</h6>
+                <p>{activity.equipment_used}</p>
+              </>
+            )}
+
+            {photoList.length > 0 && (
+              <>
+                <hr />
+                <h6 className="text-muted">Photos</h6>
+                <div className="d-flex flex-wrap">
+                  {photoList.map((src, idx) => (
+                    <a
+                      key={idx}
+                      href={resolvePhotoUrl(src)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mr-2 mb-2"
+                    >
+                      <img
+                        src={resolvePhotoUrl(src)}
+                        alt={`Site activity ${idx + 1}`}
+                        style={{ width: '90px', height: '70px', objectFit: 'cover', borderRadius: '4px' }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1274,6 +1594,131 @@ const AttendanceModal = ({ employees, sites, onClose, onSubmit }) => {
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button type="submit" className="btn btn-primary">Record Attendance</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Equipment Request Modal Component
+const EquipmentRequestModal = ({ sites, onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({
+    site_id: '',
+    description: '',
+    needed_from: '',
+    needed_until: '',
+    notes: ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.site_id) {
+      alert('Please select a site');
+      return;
+    }
+    if (!formData.description.trim()) {
+      alert('Please enter a description of required equipment');
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  return (
+    <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} onClick={onClose}>
+      <div className="modal-dialog modal-lg modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h4 className="modal-title">
+              <i className="fas fa-truck-moving mr-2"></i>
+              Request Equipment
+            </h4>
+            <button type="button" className="close" onClick={onClose}>
+              <span>&times;</span>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div
+              className="modal-body"
+              style={{ maxHeight: '70vh', overflowY: 'auto' }}
+            >
+              <div className="alert alert-info">
+                <i className="fas fa-info-circle mr-2"></i>
+                Submit a request for equipment required on a specific site. The Project Manager will review and approve or reject.
+              </div>
+
+              <div className="form-group">
+                <label>Site *</label>
+                <select
+                  className="form-control"
+                  value={formData.site_id}
+                  onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
+                  required
+                >
+                  <option value="">Select Site</option>
+                  {sites.map(site => (
+                    <option key={site.id} value={site.id}>
+                      {site.name} {site.project_name ? `(${site.project_name})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Equipment Description *</label>
+                <textarea
+                  className="form-control"
+                  rows="3"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="e.g., 1x Excavator for foundation work, 1x Concrete mixer"
+                  required
+                />
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Needed From</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={formData.needed_from}
+                      onChange={(e) => setFormData({ ...formData, needed_from: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Needed Until</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={formData.needed_until}
+                      onChange={(e) => setFormData({ ...formData, needed_until: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Additional Notes</label>
+                <textarea
+                  className="form-control"
+                  rows="2"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Any additional details or constraints..."
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-primary">
+                <i className="fas fa-paper-plane mr-1"></i>
+                Submit Request
+              </button>
             </div>
           </form>
         </div>

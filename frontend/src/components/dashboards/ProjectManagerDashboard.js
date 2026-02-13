@@ -11,6 +11,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [projects, setProjects] = useState([]);
   const [materialRequests, setMaterialRequests] = useState([]);
+  const [equipmentRequests, setEquipmentRequests] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [sites, setSites] = useState([]);
@@ -105,6 +106,19 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       } catch (e) {
         // Material requests endpoint may not exist - that's okay
         console.log('Material requests endpoint not available');
+      }
+
+      // Fetch equipment requests
+      try {
+        const erRes = await fetch('http://localhost:5000/api/equipment-requests', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (erRes.ok) {
+          const erData = await erRes.json();
+          setEquipmentRequests(Array.isArray(erData) ? erData : []);
+        }
+      } catch (e) {
+        console.log('Equipment requests endpoint not available');
       }
 
       // Fetch purchase orders (read-only)
@@ -344,22 +358,38 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
   const handleGenerateReportSubmit = async (filters) => {
     try {
-      let url = `http://localhost:5000/api/reports/${selectedReportType}?`;
-      if (filters.startDate) url += `startDate=${filters.startDate}&`;
-      if (filters.endDate) url += `endDate=${filters.endDate}&`;
-      if (filters.projectId) url += `projectId=${filters.projectId}`;
+      // Backend expects /api/reports?type=... not /api/reports/<type>
+      let url = `http://localhost:5000/api/reports?type=${encodeURIComponent(selectedReportType || '')}`;
+      if (filters.startDate) url += `&startDate=${encodeURIComponent(filters.startDate)}`;
+      if (filters.endDate) url += `&endDate=${encodeURIComponent(filters.endDate)}`;
+      if (filters.projectId) url += `&projectId=${encodeURIComponent(filters.projectId)}`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setReportData(data);
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to generate report');
+      if (!response.ok) {
+        // Try to read JSON error; fall back to text to avoid JSON parse crash
+        let message = 'Failed to generate report';
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.message) {
+            message = errorData.message;
+          }
+        } catch (_) {
+          try {
+            const text = await response.text();
+            console.error('Report error response:', text);
+          } catch (e) {
+            // ignore
+          }
+        }
+        alert(message);
+        return;
       }
+
+      const data = await response.json();
+      setReportData(data);
     } catch (error) {
       console.error('Error generating report:', error);
       alert('Error generating report');
@@ -720,83 +750,208 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       {/* Material Requests Tab */}
         {activeTab === 'material-requests' && (
-        <div className="card card-warning card-outline">
-          <div className="card-header">
-            <h3 className="card-title">
-              <i className="fas fa-clipboard-list mr-2"></i>
-              Material Requests - Pending Approval
-            </h3>
-            <div className="card-tools">
-              <span className="badge badge-warning">{materialRequests.filter(r => r.status === 'PENDING').length} Pending</span>
+        <>
+          <div className="card card-warning card-outline">
+            <div className="card-header">
+              <h3 className="card-title">
+                <i className="fas fa-clipboard-list mr-2"></i>
+                Material Requests - Pending Approval
+              </h3>
+              <div className="card-tools">
+                <span className="badge badge-warning">
+                  {materialRequests.filter(r => r.status === 'PENDING').length} Pending
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="card-body">
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped table-hover">
-                <thead className="thead-light">
-                <tr>
-                  <th>Material</th>
-                  <th>Quantity</th>
-                    <th>Unit</th>
-                  <th>Site</th>
-                  <th>Requested By</th>
-                    <th>Request Date</th>
-                    <th>Priority</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                  {materialRequests.filter(r => r.status === 'PENDING').length > 0 ? (
-                    materialRequests.filter(r => r.status === 'PENDING').map(request => (
-                  <tr key={request.id}>
-                        <td><strong>{request.material_name || 'N/A'}</strong></td>
-                        <td>{request.quantity || 'N/A'}</td>
-                        <td>{request.unit || 'N/A'}</td>
-                        <td>{request.site_name || 'N/A'}</td>
-                        <td>{request.requested_by_name || 'N/A'}</td>
-                        <td>{request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A'}</td>
-                        <td>
-                          <span className={`badge badge-${request.priority === 'HIGH' ? 'danger' : request.priority === 'MEDIUM' ? 'warning' : 'info'}`}>
-                            {request.priority || 'LOW'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="badge badge-warning">{request.status}</span>
-                        </td>
-                        <td>
-                          <div className="btn-group" role="group">
-                      <button 
-                              className="btn btn-sm btn-success"
-                        onClick={() => handleApproveMaterialRequest(request.id)}
-                              title="Approve"
-                      >
-                              <i className="fas fa-check"></i>
-                      </button>
-                            <button 
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleRejectMaterialRequest(request.id)}
-                              title="Reject"
-                            >
-                              <i className="fas fa-times"></i>
-                      </button>
-                          </div>
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped table-hover">
+                  <thead className="thead-light">
+                    <tr>
+                      <th>Material</th>
+                      <th>Quantity</th>
+                      <th>Unit</th>
+                      <th>Site</th>
+                      <th>Requested By</th>
+                      <th>Request Date</th>
+                      <th>Priority</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {materialRequests.filter(r => r.status === 'PENDING').length > 0 ? (
+                      materialRequests
+                        .filter(r => r.status === 'PENDING')
+                        .map(request => (
+                          <tr key={request.id}>
+                            <td><strong>{request.material_name || 'N/A'}</strong></td>
+                            <td>{request.quantity || 'N/A'}</td>
+                            <td>{request.unit || 'N/A'}</td>
+                            <td>{request.site_name || 'N/A'}</td>
+                            <td>{request.requested_by_name || 'N/A'}</td>
+                            <td>{request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A'}</td>
+                            <td>
+                              <span className={`badge badge-${request.priority === 'HIGH' ? 'danger' : request.priority === 'MEDIUM' ? 'warning' : 'info'}`}>
+                                {request.priority || 'LOW'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="badge badge-warning">{request.status}</span>
+                            </td>
+                            <td>
+                              <div className="btn-group" role="group">
+                                <button
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => handleApproveMaterialRequest(request.id)}
+                                  title="Approve"
+                                >
+                                  <i className="fas fa-check"></i>
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => handleRejectMaterialRequest(request.id)}
+                                  title="Reject"
+                                >
+                                  <i className="fas fa-times"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan="9" className="text-center py-5">
+                          <i className="fas fa-check-circle fa-3x text-success mb-3"></i>
+                          <p className="text-muted">No pending material requests</p>
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="9" className="text-center py-5">
-                        <i className="fas fa-check-circle fa-3x text-success mb-3"></i>
-                        <p className="text-muted">No pending material requests</p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div className="card card-info card-outline mt-3">
+            <div className="card-header">
+              <h3 className="card-title">
+                <i className="fas fa-truck-moving mr-2"></i>
+                Equipment Requests - Pending Approval
+              </h3>
+              <div className="card-tools">
+                <span className="badge badge-info">
+                  {equipmentRequests.filter(r => r.status === 'PENDING').length} Pending
+                </span>
+              </div>
+            </div>
+            <div className="card-body">
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped table-hover">
+                  <thead className="thead-light">
+                    <tr>
+                      <th>Site</th>
+                      <th>Project</th>
+                      <th>Description</th>
+                      <th>Requested By</th>
+                      <th>Request Date</th>
+                      <th>Needed From</th>
+                      <th>Needed Until</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipmentRequests.filter(r => r.status === 'PENDING').length > 0 ? (
+                      equipmentRequests
+                        .filter(r => r.status === 'PENDING')
+                        .map(request => (
+                          <tr key={request.id}>
+                            <td>{request.site_name || 'N/A'}</td>
+                            <td>{request.project_name || 'N/A'}</td>
+                            <td><strong>{request.description || 'N/A'}</strong></td>
+                            <td>
+                              {(request.requested_by_first_name || '')} {(request.requested_by_last_name || '')}
+                            </td>
+                            <td>{request.request_date ? new Date(request.request_date).toLocaleDateString() : 'N/A'}</td>
+                            <td>{request.needed_from ? new Date(request.needed_from).toLocaleDateString() : 'N/A'}</td>
+                            <td>{request.needed_until ? new Date(request.needed_until).toLocaleDateString() : 'N/A'}</td>
+                            <td>
+                              <span className="badge badge-info">{request.status}</span>
+                            </td>
+                            <td>
+                              <div className="btn-group" role="group">
+                                <button
+                                  className="btn btn-sm btn-success"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(`http://localhost:5000/api/equipment-requests/${request.id}/approve`, {
+                                        method: 'PUT',
+                                        headers: { 'Authorization': `Bearer ${token}` }
+                                      });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (res.ok) {
+                                        await fetchData();
+                                        alert('Equipment request approved successfully');
+                                      } else {
+                                        alert(data.message || 'Failed to approve equipment request');
+                                      }
+                                    } catch (err) {
+                                      console.error('Error approving equipment request:', err);
+                                      alert('Error approving equipment request');
+                                    }
+                                  }}
+                                  title="Approve"
+                                >
+                                  <i className="fas fa-check"></i>
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={async () => {
+                                    if (!window.confirm('Are you sure you want to reject this equipment request?')) return;
+                                    try {
+                                      const res = await fetch(`http://localhost:5000/api/equipment-requests/${request.id}/reject`, {
+                                        method: 'PUT',
+                                        headers: {
+                                          'Authorization': `Bearer ${token}`,
+                                          'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({ reason: 'Rejected by Project Manager' })
+                                      });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (res.ok) {
+                                        await fetchData();
+                                        alert('Equipment request rejected');
+                                      } else {
+                                        alert(data.message || 'Failed to reject equipment request');
+                                      }
+                                    } catch (err) {
+                                      console.error('Error rejecting equipment request:', err);
+                                      alert('Error rejecting equipment request');
+                                    }
+                                  }}
+                                  title="Reject"
+                                >
+                                  <i className="fas fa-times"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan="9" className="text-center py-5">
+                          <i className="fas fa-check-circle fa-3x text-success mb-3"></i>
+                          <p className="text-muted">No pending equipment requests</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Procurement & Financial Tab */}

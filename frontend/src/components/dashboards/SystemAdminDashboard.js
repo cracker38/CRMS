@@ -10,6 +10,8 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [users, setUsers] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [equipment, setEquipment] = useState([]);
   const [projects, setProjects] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -20,6 +22,8 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,6 +78,37 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         if (response.ok) {
           const data = await response.json();
           setUsers(data);
+        }
+      } else if (activeTab === 'employees') {
+        const [employeesRes, usersRes] = await Promise.all([
+          fetch('http://localhost:5000/api/employees', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch('http://localhost:5000/api/users', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ]);
+
+        if (employeesRes.ok) {
+          const empData = await employeesRes.json();
+          setEmployees(Array.isArray(empData) ? empData : []);
+        } else {
+          setEmployees([]);
+        }
+
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setUsers(Array.isArray(usersData) ? usersData : []);
+        }
+      } else if (activeTab === 'equipment') {
+        const response = await fetch('http://localhost:5000/api/equipment', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setEquipment(Array.isArray(data) ? data : []);
+        } else {
+          setEquipment([]);
         }
       } else if (activeTab === 'projects') {
         const response = await fetch('http://localhost:5000/api/projects', {
@@ -1483,6 +1518,157 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         </div>
       )}
 
+      {/* Employees Tab */}
+      {activeTab === 'employees' && (
+        <div className="card card-success card-outline">
+          <div className="card-header">
+            <h3 className="card-title">
+              <i className="fas fa-user-friends mr-2"></i>
+              Employees
+            </h3>
+            <div className="card-tools">
+              <button
+                type="button"
+                className="btn btn-success btn-sm"
+                onClick={() => setShowEmployeeModal(true)}
+              >
+                <i className="fas fa-plus mr-1"></i>
+                Add Employee
+              </button>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="table-responsive">
+              <table className="table table-bordered table-striped table-hover">
+                <thead className="thead-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Employee ID</th>
+                    <th>Position</th>
+                    <th>Phone</th>
+                    <th>Hire Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.length > 0 ? (
+                    employees.map(emp => (
+                      <tr key={emp.id}>
+                        <td>
+                          <strong>{emp.first_name || ''} {emp.last_name || ''}</strong>
+                          {emp.role && (
+                            <div>
+                              <small className="text-muted">
+                                Linked user role: {(emp.role || '').replace(/_/g, ' ')}
+                              </small>
+                            </div>
+                          )}
+                        </td>
+                        <td>{emp.employee_id || '-'}</td>
+                        <td>{emp.position || 'N/A'}</td>
+                        <td>{emp.phone || 'N/A'}</td>
+                        <td>{emp.hire_date ? new Date(emp.hire_date).toLocaleDateString() : 'N/A'}</td>
+                        <td>
+                          <span className={`badge badge-${emp.status === 'ACTIVE' ? 'success' : 'secondary'}`}>
+                            {emp.status || 'ACTIVE'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4">
+                        <i className="fas fa-user-friends fa-2x text-muted mb-2"></i>
+                        <p className="text-muted mb-1">No employees found.</p>
+                        <button
+                          type="button"
+                          className="btn btn-success btn-sm"
+                          onClick={() => setShowEmployeeModal(true)}
+                        >
+                          <i className="fas fa-plus mr-1"></i>
+                          Add First Employee
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Equipment Tab */}
+      {activeTab === 'equipment' && (
+        <div className="card card-info card-outline">
+          <div className="card-header">
+            <h3 className="card-title">
+              <i className="fas fa-tools mr-2"></i>
+              Equipment Management
+            </h3>
+            <div className="card-tools">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setShowEquipmentModal(true)}
+              >
+                <i className="fas fa-plus mr-1"></i>
+                Add Equipment
+              </button>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="table-responsive">
+              <table className="table table-bordered table-striped table-hover">
+                <thead className="thead-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Serial Number</th>
+                    <th>Status</th>
+                    <th>Purchase Date</th>
+                    <th>Purchase Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {equipment.length > 0 ? (
+                    equipment.map(item => (
+                      <tr key={item.id}>
+                        <td><strong>{item.name || 'N/A'}</strong></td>
+                        <td>{item.type || 'N/A'}</td>
+                        <td>{item.serial_number || 'N/A'}</td>
+                        <td>
+                          <span className={`badge badge-${item.status === 'IN_USE' ? 'success' : item.status === 'MAINTENANCE' ? 'warning' : item.status === 'RETIRED' ? 'secondary' : 'info'}`}>
+                            {item.status || 'AVAILABLE'}
+                          </span>
+                        </td>
+                        <td>{item.purchase_date ? new Date(item.purchase_date).toLocaleDateString() : 'N/A'}</td>
+                        <td>{item.purchase_cost ? `$${parseFloat(item.purchase_cost).toFixed(2)}` : 'N/A'}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4">
+                        <i className="fas fa-tools fa-2x text-muted mb-2"></i>
+                        <p className="text-muted mb-1">No equipment found.</p>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setShowEquipmentModal(true)}
+                        >
+                          <i className="fas fa-plus mr-1"></i>
+                          Add First Equipment
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Alert Investigation Modal */}
       {showAlertModal && selectedAlert && (
         <AlertModal
@@ -1502,6 +1688,71 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
           onSave={handleSaveUser}
           roles={roles}
           existingUsers={users}
+        />
+      )}
+
+      {/* Employee Modal */}
+      {showEmployeeModal && (
+        <EmployeeModal
+          users={users}
+          onClose={() => setShowEmployeeModal(false)}
+          onSave={async (payload) => {
+            try {
+              const response = await fetch('http://localhost:5000/api/employees', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              const data = await response.json().catch(() => ({}));
+
+              if (response.ok) {
+                setShowEmployeeModal(false);
+                await fetchData();
+                alert('Employee created successfully');
+              } else {
+                alert(data.message || 'Failed to create employee');
+              }
+            } catch (error) {
+              console.error('Error creating employee:', error);
+              alert('Error creating employee: ' + (error.message || 'Network error'));
+            }
+          }}
+        />
+      )}
+
+      {/* Equipment Modal */}
+      {showEquipmentModal && (
+        <EquipmentModal
+          onClose={() => setShowEquipmentModal(false)}
+          onSave={async (payload) => {
+            try {
+              const response = await fetch('http://localhost:5000/api/equipment', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              const data = await response.json().catch(() => ({}));
+
+              if (response.ok) {
+                setShowEquipmentModal(false);
+                await fetchData();
+                alert('Equipment created successfully');
+              } else {
+                alert(data.message || 'Failed to create equipment');
+              }
+            } catch (error) {
+              console.error('Error creating equipment:', error);
+              alert('Error creating equipment: ' + (error.message || 'Network error'));
+            }
+          }}
         />
       )}
 
@@ -2018,6 +2269,296 @@ const MaterialModal = ({ onClose, onSubmit }) => {
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button type="submit" className="btn btn-primary">Create Material</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Employee Modal Component
+const EmployeeModal = ({ users, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    user_id: '',
+    employee_id: '',
+    phone: '',
+    address: '',
+    position: '',
+    hire_date: new Date().toISOString().split('T')[0],
+    status: 'ACTIVE'
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.employee_id.trim()) {
+      alert('Employee ID is required');
+      return;
+    }
+    onSave(formData);
+  };
+
+  const availableUsers = Array.isArray(users) ? users : [];
+
+  return (
+    <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} onClick={onClose}>
+      <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h4 className="modal-title">
+              <i className="fas fa-user-friends mr-2"></i>
+              Add Employee
+            </h4>
+            <button type="button" className="close" onClick={onClose}>
+              <span>&times;</span>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div className="modal-body">
+              <div className="alert alert-info">
+                <i className="fas fa-info-circle mr-2"></i>
+                Link this employee to an existing system user (optional), or leave it blank to create an employee record only.
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Linked User (optional)</label>
+                    <select
+                      className="form-control"
+                      value={formData.user_id}
+                      onChange={(e) => setFormData({ ...formData, user_id: e.target.value })}
+                    >
+                      <option value="">-- No linked user --</option>
+                      {availableUsers.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.first_name} {u.last_name} ({u.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Employee ID *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.employee_id}
+                      onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                      placeholder="e.g., EMP-001"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Phone</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+2507..."
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Position / Role</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.position}
+                      onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                      placeholder="e.g., Mason, Foreman, Electrician"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Hire Date</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={formData.hire_date}
+                      onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      className="form-control"
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    >
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                      <option value="TERMINATED">Terminated</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Address</label>
+                <textarea
+                  className="form-control"
+                  rows="2"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder="Employee home address or contact location"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-success">
+                <i className="fas fa-save mr-1"></i>
+                Save Employee
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Equipment Modal Component
+const EquipmentModal = ({ onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    type: '',
+    serial_number: '',
+    status: 'AVAILABLE',
+    purchase_date: '',
+    purchase_cost: ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      alert('Equipment name is required');
+      return;
+    }
+    onSave(formData);
+  };
+
+  return (
+    <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} onClick={onClose}>
+      <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-content">
+          <div className="modal-header">
+            <h4 className="modal-title">
+              <i className="fas fa-tools mr-2"></i>
+              Add Equipment
+            </h4>
+            <button type="button" className="close" onClick={onClose}>
+              <span>&times;</span>
+            </button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div className="modal-body">
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Name *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="e.g., Excavator, Crane"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Type</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.type}
+                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                      placeholder="e.g., Heavy, Light, Vehicle"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Serial Number</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={formData.serial_number}
+                      onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
+                      placeholder="Manufacturer serial / asset tag"
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      className="form-control"
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    >
+                      <option value="AVAILABLE">Available</option>
+                      <option value="IN_USE">In Use</option>
+                      <option value="MAINTENANCE">Maintenance</option>
+                      <option value="RETIRED">Retired</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Purchase Date</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={formData.purchase_date}
+                      onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <label>Purchase Cost</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-control"
+                      value={formData.purchase_cost}
+                      onChange={(e) => setFormData({ ...formData, purchase_cost: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn btn-primary">
+                <i className="fas fa-save mr-1"></i>
+                Save Equipment
+              </button>
             </div>
           </form>
         </div>

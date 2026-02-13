@@ -48,6 +48,49 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// Create a new material request (Site Supervisor / Project Manager)
+router.post('/', authenticate, authorize('SITE_SUPERVISOR', 'PROJECT_MANAGER'), async (req, res) => {
+  try {
+    const { site_id, material_id, quantity, priority, notes } = req.body;
+
+    // Basic validation
+    if (!site_id || !material_id || !quantity) {
+      return res.status(400).json({ message: 'Site, material and quantity are required' });
+    }
+
+    // Optionally verify that the site belongs to the current supervisor / manager
+    if (req.user.role === 'SITE_SUPERVISOR') {
+      const [sites] = await db.execute(
+        'SELECT id FROM sites WHERE id = ? AND supervisor_id = ?',
+        [site_id, req.user.id]
+      );
+      if (sites.length === 0) {
+        return res.status(403).json({ message: 'You are not allowed to request materials for this site' });
+      }
+    }
+
+    const [result] = await db.execute(
+      'INSERT INTO material_requests (site_id, requested_by, material_id, quantity, priority, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [site_id, req.user.id, material_id, quantity, priority || 'NORMAL', notes || null]
+    );
+
+    // Log audit (best-effort)
+    try {
+      await db.execute(
+        'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
+        [req.user.id, 'CREATE_MATERIAL_REQUEST', 'material_requests', result.insertId, JSON.stringify(req.body)]
+      );
+    } catch (auditError) {
+      console.error('Audit log error (material request):', auditError);
+    }
+
+    res.status(201).json({ message: 'Material request created successfully', id: result.insertId });
+  } catch (error) {
+    console.error('Create material request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Approve material request (Project Manager)
 router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (req, res) => {
   try {

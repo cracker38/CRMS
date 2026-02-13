@@ -294,12 +294,42 @@ router.post('/quotations', authenticate, authorize('PROCUREMENT_OFFICER'), async
 router.put('/purchase-orders/:id/delivery', authenticate, authorize('PROCUREMENT_OFFICER'), async (req, res) => {
   try {
     const { delivery_date, status, notes } = req.body;
-    
-    await db.execute(
-      'UPDATE purchase_orders SET delivery_date = ?, status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW() WHERE id = ?',
-      [delivery_date, status, notes || '', req.params.id]
-    );
-    
+
+    // Make this robust to schema differences (some DBs may not have delivery_date)
+    const [columns] = await db.execute('DESCRIBE purchase_orders');
+    const columnNames = columns.map(col => col.Field);
+
+    let query;
+    const params = [];
+
+    if (columnNames.includes('delivery_date')) {
+      // If an explicit delivery_date column exists, use it
+      query = `
+        UPDATE purchase_orders
+        SET delivery_date = ?, status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW()
+        WHERE id = ?
+      `;
+      params.push(delivery_date, status, notes || '', req.params.id);
+    } else if (columnNames.includes('expected_delivery_date')) {
+      // Fallback: store the delivery date in expected_delivery_date
+      query = `
+        UPDATE purchase_orders
+        SET expected_delivery_date = ?, status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW()
+        WHERE id = ?
+      `;
+      params.push(delivery_date, status, notes || '', req.params.id);
+    } else {
+      // Minimal fallback: only update status and notes
+      query = `
+        UPDATE purchase_orders
+        SET status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW()
+        WHERE id = ?
+      `;
+      params.push(status, notes || '', req.params.id);
+    }
+
+    await db.execute(query, params);
+
     res.json({ message: 'Delivery updated successfully' });
   } catch (error) {
     console.error('Update delivery error:', error);

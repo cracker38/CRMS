@@ -78,7 +78,7 @@ router.get('/', authenticate, async (req, res) => {
 // Create site activity (Site Supervisor)
 router.post('/', authenticate, authorize('SITE_SUPERVISOR'), upload.array('photos', 5), async (req, res) => {
   try {
-    // Create table if it doesn't exist
+    // Ensure table exists; if not, create a rich structure
     try {
       await db.execute('SELECT 1 FROM site_activities LIMIT 1');
     } catch (tableError) {
@@ -103,16 +103,67 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), upload.array('photo
       `);
     }
 
-    const { site_id, activity_date, work_description, progress_percentage, workforce_count, equipment_used, issues_encountered, weather_conditions } = req.body;
-    
+    const {
+      site_id,
+      activity_date,
+      work_description,
+      progress_percentage,
+      workforce_count,
+      equipment_used,
+      issues_encountered,
+      weather_conditions
+    } = req.body;
+
     // Handle uploaded photos
     const photoPaths = req.files ? req.files.map(file => `/uploads/site-photos/${file.filename}`) : [];
-    
-    const [result] = await db.execute(
-      'INSERT INTO site_activities (site_id, reported_by, activity_date, work_description, progress_percentage, workforce_count, equipment_used, issues_encountered, weather_conditions, photos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [site_id, req.user.id, activity_date, work_description, progress_percentage || 0, workforce_count || 0, equipment_used || '', issues_encountered || '', weather_conditions || '', JSON.stringify(photoPaths)]
-    );
-    
+
+    // Detect current schema so we don't reference missing columns (works with existing crms.sql)
+    const [columns] = await db.execute('DESCRIBE site_activities');
+    const columnNames = columns.map(col => col.Field);
+
+    let insertSql;
+    let params;
+
+    if (columnNames.includes('work_description')) {
+      // Newer schema with richer columns
+      insertSql = `
+        INSERT INTO site_activities
+          (site_id, reported_by, activity_date, work_description, progress_percentage, workforce_count, equipment_used, issues_encountered, weather_conditions, photos)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      params = [
+        site_id,
+        req.user.id,
+        activity_date,
+        work_description || null,
+        progress_percentage || 0,
+        workforce_count || 0,
+        equipment_used || '',
+        issues_encountered || '',
+        weather_conditions || '',
+        JSON.stringify(photoPaths)
+      ];
+    } else {
+      // Legacy schema from crms.sql: description / photos_path / incidents
+      insertSql = `
+        INSERT INTO site_activities
+          (site_id, reported_by, activity_date, progress_percentage, description, photos_path, weather_conditions, incidents)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      params = [
+        site_id,
+        req.user.id,
+        activity_date,
+        progress_percentage || 0,
+        work_description || null,
+        JSON.stringify(photoPaths),
+        weather_conditions || '',
+        issues_encountered || ''
+      ];
+    }
+
+    const [result] = await db.execute(insertSql, params);
+
     res.status(201).json({ message: 'Site activity recorded successfully', activityId: result.insertId });
   } catch (error) {
     console.error('Create site activity error:', error);
