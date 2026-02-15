@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
-const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
+const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [users, setUsers] = useState([]);
@@ -37,7 +37,6 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
     activeUsers: 0,
     activeProjects: 0,
     totalExpenses: 0,
-    pendingApprovals: 0,
     totalBudget: 0,
     systemHealth: 100
   });
@@ -175,14 +174,16 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
         const totalBudget = (Array.isArray(projectsData) ? projectsData : []).reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0);
         const totalExpenses = (Array.isArray(expensesData) ? expensesData : []).reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-        const pendingApprovals = (Array.isArray(expensesData) ? expensesData : []).filter(e => e.payment_status === 'PENDING').length;
+
+        // Active projects = PLANNING, IN_PROGRESS, ON_HOLD (projects table has no 'ACTIVE')
+        const activeProjectStatuses = ['PLANNING', 'IN_PROGRESS', 'ON_HOLD'];
+        const activeProjectsCount = (Array.isArray(projectsData) ? projectsData : []).filter(p => activeProjectStatuses.includes(p.status)).length;
 
         setStats({
           totalUsers: (Array.isArray(usersData) ? usersData : []).length,
           activeUsers: (Array.isArray(usersData) ? usersData : []).filter(u => u.status === 'ACTIVE').length,
-          activeProjects: (Array.isArray(projectsData) ? projectsData : []).filter(p => p.status === 'ACTIVE').length,
+          activeProjects: activeProjectsCount,
           totalExpenses: totalExpenses,
-          pendingApprovals: pendingApprovals,
           totalBudget: totalBudget,
           systemHealth: calculateSystemHealth(usersData, projectsData, expensesData)
         });
@@ -315,6 +316,7 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         setShowUserModal(false);
         setEditingUser(null);
         fetchData();
+        if (!currentEditingUser) onRefreshNotifications?.();
         alert(currentEditingUser ? 'User updated successfully' : 'User created successfully');
       } else {
         alert(data.message || 'Failed to save user');
@@ -705,20 +707,6 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                 </a>
               </div>
             </div>
-            <div className="col-lg-3 col-6">
-              <div className="small-box bg-danger">
-                <div className="inner">
-                  <h3>{stats.pendingApprovals}</h3>
-                  <p>Pending Approvals</p>
-                </div>
-                <div className="icon">
-                  <i className="fas fa-exclamation-triangle"></i>
-                </div>
-                <a href="#" className="small-box-footer" onClick={(e) => { e.preventDefault(); handleTabChange('reports'); }}>
-                  More info <i className="fas fa-arrow-circle-right"></i>
-                </a>
-              </div>
-            </div>
           </div>
 
           {/* System Health */}
@@ -1042,7 +1030,6 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                     <th>Spent</th>
                   <th>Status</th>
                   <th>Sites</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1075,14 +1062,11 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                           </span>
                         </td>
                     <td>{project.site_count || 0}</td>
-                        <td>
-                          <button className="btn btn-sm btn-info">View Details</button>
-                        </td>
                       </tr>
                     );
                   }) : (
                     <tr>
-                      <td colSpan="7" className="text-center">No projects found</td>
+                      <td colSpan="6" className="text-center">No projects found</td>
                   </tr>
                   )}
               </tbody>
@@ -1188,7 +1172,6 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                   <th>Status</th>
                     <th>Order Date</th>
                     <th>Expected Delivery</th>
-                    <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1204,13 +1187,10 @@ const SystemAdminDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                       </td>
                       <td>{po.order_date ? new Date(po.order_date).toLocaleDateString() : 'N/A'}</td>
                       <td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
-                      <td>
-                        <button className="btn btn-sm btn-info">View</button>
-                      </td>
                   </tr>
                   )) : (
                     <tr>
-                      <td colSpan="7" className="text-center">No purchase orders found</td>
+                      <td colSpan="6" className="text-center">No purchase orders found</td>
                   </tr>
                   )}
               </tbody>

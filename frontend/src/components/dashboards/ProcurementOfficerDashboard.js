@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
-const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
+const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -55,12 +55,16 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) 
 
   // Update stats when data changes
   useEffect(() => {
-    const totalPOs = purchaseOrders.length;
-    const pendingPOs = purchaseOrders.filter(po => po.status === 'PENDING' || po.status === 'ORDERED').length;
-    const deliveredPOs = purchaseOrders.filter(po => po.status === 'DELIVERED').length;
-    const totalSuppliers = suppliers.length;
-    const totalQuotations = quotations.length;
-    const totalValue = purchaseOrders.reduce((sum, po) => sum + (parseFloat(po.total_amount) || 0), 0);
+    const poList = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+    const totalPOs = poList.length;
+    const pendingPOs = poList.filter(po => {
+      const s = (po.status || 'PENDING').toString().toUpperCase();
+      return s !== 'DELIVERED' && s !== 'CANCELLED';
+    }).length;
+    const deliveredPOs = poList.filter(po => (po.status || '').toString().toUpperCase() === 'DELIVERED').length;
+    const totalSuppliers = (suppliers || []).length;
+    const totalQuotations = (quotations || []).length;
+    const totalValue = poList.reduce((sum, po) => sum + (parseFloat(po.total_amount) || 0), 0);
 
     setStats({
       totalPOs,
@@ -82,7 +86,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) 
         });
         if (poRes.ok) {
           const poData = await poRes.json();
-          setPurchaseOrders(poData);
+          setPurchaseOrders(Array.isArray(poData) ? poData : []);
         }
       } catch (e) {
         console.log('Error fetching purchase orders:', e);
@@ -148,6 +152,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) 
         if (response.ok) {
         await fetchData();
         setShowPOModal(false);
+        onRefreshNotifications?.();
         alert('Purchase order created successfully');
       } else {
         const error = await response.json();
@@ -255,6 +260,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) 
         await fetchData();
         setShowDeliveryModal(false);
         setSelectedPO(null);
+        onRefreshNotifications?.();
         alert('Delivery updated successfully');
       } else {
         const error = await response.json();

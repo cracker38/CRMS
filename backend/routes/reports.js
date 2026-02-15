@@ -34,7 +34,7 @@ router.get('/', authenticate, async (req, res) => {
         reportData = await getSystemAdminReports(reportType, dateFilter);
         break;
       case 'PROJECT_MANAGER':
-        reportData = await getProjectManagerReports(reportType, req.user.id, dateFilter, projectId);
+        reportData = await getProjectManagerReports(reportType, req.user.id, dateFilter, projectId, startDate, endDate);
         break;
       case 'SITE_SUPERVISOR':
         reportData = await getSiteSupervisorReports(reportType, req.user.id, startDate, endDate, dateParams, siteId);
@@ -217,21 +217,52 @@ async function getSystemAdminReports(reportType, dateFilter) {
   }
 }
 
-async function getProjectManagerReports(reportType, userId, dateFilter, projectId) {
-  const projectFilter = projectId ? `AND p.id = ${projectId}` : '';
+async function getProjectManagerReports(reportType, userId, dateFilter, projectId, startDate, endDate) {
+  const projectIdNum = projectId && /^\d+$/.test(String(projectId).trim()) ? parseInt(projectId, 10) : null;
+  const projectFilter = projectIdNum ? ' AND p.id = ?' : '';
+  // Build report-specific date filters
+  let expenseDateFilter = '';
+  let workforceDateFilter = '';
+  let materialUsageDateFilter = '';
+  let siteActivityDateFilter = '';
+  let procurementDateFilter = '';
+  if (startDate && endDate) {
+    expenseDateFilter = `AND DATE(e.created_at) BETWEEN '${startDate}' AND '${endDate}'`;
+    workforceDateFilter = `AND DATE(a.date) BETWEEN '${startDate}' AND '${endDate}'`;
+    materialUsageDateFilter = `AND DATE(mr.created_at) BETWEEN '${startDate}' AND '${endDate}'`;
+    siteActivityDateFilter = `AND DATE(sa.activity_date) BETWEEN '${startDate}' AND '${endDate}'`;
+    procurementDateFilter = `AND DATE(po.created_at) BETWEEN '${startDate}' AND '${endDate}'`;
+  } else if (startDate) {
+    expenseDateFilter = `AND DATE(e.created_at) >= '${startDate}'`;
+    workforceDateFilter = `AND DATE(a.date) >= '${startDate}'`;
+    materialUsageDateFilter = `AND DATE(mr.created_at) >= '${startDate}'`;
+    siteActivityDateFilter = `AND DATE(sa.activity_date) >= '${startDate}'`;
+    procurementDateFilter = `AND DATE(po.created_at) >= '${startDate}'`;
+  } else if (endDate) {
+    expenseDateFilter = `AND DATE(e.created_at) <= '${endDate}'`;
+    workforceDateFilter = `AND DATE(a.date) <= '${endDate}'`;
+    materialUsageDateFilter = `AND DATE(mr.created_at) <= '${endDate}'`;
+    siteActivityDateFilter = `AND DATE(sa.activity_date) <= '${endDate}'`;
+    procurementDateFilter = `AND DATE(po.created_at) <= '${endDate}'`;
+  }
   
+  const baseParams = projectIdNum ? [userId, projectIdNum] : [userId];
+
   switch (reportType) {
     case 'project-summary':
+      const summaryJoin = expenseDateFilter
+        ? `LEFT JOIN expenses e ON p.id = e.project_id AND ${expenseDateFilter.replace(/^AND\s+/, '')}`
+        : 'LEFT JOIN expenses e ON p.id = e.project_id';
       const [summary] = await db.execute(`
         SELECT p.*, 
           (SELECT COUNT(*) FROM sites WHERE project_id = p.id) as site_count,
           COALESCE(SUM(e.amount), 0) as total_expenses,
           COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as paid_expenses
         FROM projects p
-        LEFT JOIN expenses e ON p.id = e.project_id
+        ${summaryJoin}
         WHERE p.project_manager_id = ? ${projectFilter}
         GROUP BY p.id
-      `, [userId]);
+      `, baseParams);
       return summary;
     case 'project-progress':
       const [progress] = await db.execute(`
@@ -249,9 +280,12 @@ async function getProjectManagerReports(reportType, userId, dateFilter, projectI
         FROM projects p
         WHERE p.project_manager_id = ? ${projectFilter}
         ORDER BY p.created_at DESC
-      `, [userId]);
+      `, baseParams);
       return progress;
     case 'budget-vs-actual':
+      const budgetJoin = expenseDateFilter
+        ? `LEFT JOIN expenses e ON p.id = e.project_id AND ${expenseDateFilter.replace(/^AND\s+/, '')}`
+        : 'LEFT JOIN expenses e ON p.id = e.project_id';
       const [budget] = await db.execute(`
         SELECT 
           p.id,
@@ -259,55 +293,60 @@ async function getProjectManagerReports(reportType, userId, dateFilter, projectI
           p.budget,
           COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as actual_spent,
           (p.budget - COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0)) as variance,
-          ROUND((COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) / p.budget * 100), 2) as percentage_used
+          ROUND((COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) / NULLIF(p.budget, 0) * 100), 2) as percentage_used
         FROM projects p
-        LEFT JOIN expenses e ON p.id = e.project_id
+        ${budgetJoin}
         WHERE p.project_manager_id = ? ${projectFilter}
         GROUP BY p.id, p.name, p.budget
-      `, [userId]);
+      `, baseParams);
       return budget;
     case 'material-usage':
       const [materialUsage] = await db.execute(`
         SELECT 
           m.name as material_name,
           m.unit,
-          SUM(mr.quantity) as total_requested,
-          SUM(CASE WHEN mr.status = 'APPROVED' THEN mr.quantity ELSE 0 END) as approved_quantity,
-          SUM(CASE WHEN mr.status = 'PENDING' THEN mr.quantity ELSE 0 END) as pending_quantity,
+          COALESCE(SUM(mr.quantity), 0) as total_requested,
+          COALESCE(SUM(CASE WHEN mr.status = 'APPROVED' THEN mr.quantity ELSE 0 END), 0) as approved_quantity,
+          COALESCE(SUM(CASE WHEN mr.status = 'PENDING' THEN mr.quantity ELSE 0 END), 0) as pending_quantity,
           p.name as project_name,
           s.name as site_name
         FROM material_requests mr
         LEFT JOIN materials m ON mr.material_id = m.id
         LEFT JOIN sites s ON mr.site_id = s.id
         LEFT JOIN projects p ON s.project_id = p.id
-        WHERE p.project_manager_id = ? ${projectFilter} ${dateFilter}
+        WHERE p.project_manager_id = ? ${projectFilter} ${materialUsageDateFilter}
         GROUP BY m.id, m.name, m.unit, p.name, s.name
         ORDER BY total_requested DESC
-      `, [userId]);
+      `, baseParams);
       return materialUsage;
     case 'workforce-productivity':
-      const [workforce] = await db.execute(`
-        SELECT 
-          e.id,
-          e.employee_id,
-          u.first_name,
-          u.last_name,
-          u.email,
-          COUNT(DISTINCT a.date) as days_worked,
-          SUM(a.hours_worked) as total_hours,
-          AVG(a.hours_worked) as avg_hours_per_day,
-          s.name as site_name,
-          p.name as project_name
-        FROM employees e
-        LEFT JOIN users u ON e.user_id = u.id
-        LEFT JOIN attendance a ON e.id = a.employee_id
-        LEFT JOIN sites s ON a.site_id = s.id
-        LEFT JOIN projects p ON s.project_id = p.id
-        WHERE p.project_manager_id = ? ${projectFilter} ${dateFilter}
-        GROUP BY e.id, e.employee_id, u.first_name, u.last_name, u.email, s.name, p.name
-        ORDER BY total_hours DESC
-      `, [userId]);
-      return workforce;
+      try {
+        const [workforce] = await db.execute(`
+          SELECT 
+            e.id,
+            e.employee_id,
+            COALESCE(u.first_name, e.employee_id) as first_name,
+            COALESCE(u.last_name, '') as last_name,
+            u.email,
+            COUNT(DISTINCT a.date) as days_worked,
+            COALESCE(SUM(a.hours_worked), 0) as total_hours,
+            COALESCE(AVG(a.hours_worked), 0) as avg_hours_per_day,
+            s.name as site_name,
+            p.name as project_name
+          FROM employees e
+          LEFT JOIN users u ON e.user_id = u.id
+          INNER JOIN attendance a ON e.id = a.employee_id
+          LEFT JOIN sites s ON a.site_id = s.id
+          LEFT JOIN projects p ON s.project_id = p.id
+          WHERE p.project_manager_id = ? ${projectFilter} ${workforceDateFilter}
+          GROUP BY e.id, e.employee_id, u.first_name, u.last_name, u.email, s.name, p.name
+          ORDER BY total_hours DESC
+        `, baseParams);
+        return workforce;
+      } catch (wfErr) {
+        if (wfErr.code === 'ER_NO_SUCH_TABLE') return [];
+        throw wfErr;
+      }
     case 'site-activity':
       const [siteActivity] = await db.execute(`
         SELECT 
@@ -320,30 +359,37 @@ async function getProjectManagerReports(reportType, userId, dateFilter, projectI
         LEFT JOIN sites s ON sa.site_id = s.id
         LEFT JOIN projects p ON s.project_id = p.id
         LEFT JOIN users u ON sa.reported_by = u.id
-        WHERE p.project_manager_id = ? ${projectFilter} ${dateFilter}
+        WHERE p.project_manager_id = ? ${projectFilter} ${siteActivityDateFilter}
         ORDER BY sa.activity_date DESC, sa.created_at DESC
-      `, [userId]);
+      `, baseParams);
       return siteActivity;
     case 'procurement-status':
-      const [procurement] = await db.execute(`
-        SELECT 
-          po.*,
-          s.name as supplier_name,
-          p.name as project_name,
-          u.first_name as creator_first_name,
-          u.last_name as creator_last_name
-        FROM purchase_orders po
-        LEFT JOIN suppliers s ON po.supplier_id = s.id
-        LEFT JOIN purchase_order_items poi ON po.id = poi.po_id
-        LEFT JOIN material_requests mr ON poi.material_id = mr.material_id
-        LEFT JOIN sites st ON mr.site_id = st.id
-        LEFT JOIN projects p ON st.project_id = p.id
-        LEFT JOIN users u ON po.created_by = u.id
-        WHERE p.project_manager_id = ? ${projectFilter} ${dateFilter}
-        GROUP BY po.id
-        ORDER BY po.created_at DESC
-      `, [userId]);
-      return procurement;
+      try {
+        const [procurement] = await db.execute(`
+          SELECT 
+            po.id, po.po_number, po.order_date, po.expected_delivery_date, po.status,
+            po.total_amount, po.notes, po.created_at,
+            s.name as supplier_name,
+            u.first_name as creator_first_name,
+            u.last_name as creator_last_name
+          FROM purchase_orders po
+          LEFT JOIN suppliers s ON po.supplier_id = s.id
+          LEFT JOIN users u ON po.created_by = u.id
+          WHERE EXISTS (
+            SELECT 1 FROM purchase_order_items poi
+            JOIN material_requests mr ON poi.material_id = mr.material_id
+            JOIN sites st ON mr.site_id = st.id
+            JOIN projects p ON st.project_id = p.id
+            WHERE poi.po_id = po.id AND p.project_manager_id = ? ${projectFilter}
+          )
+          ${procurementDateFilter}
+          ORDER BY po.created_at DESC
+        `, baseParams);
+        return procurement;
+      } catch (procErr) {
+        if (procErr.code === 'ER_NO_SUCH_TABLE') return [];
+        throw procErr;
+      }
     default:
       return { message: 'Report not found' };
   }

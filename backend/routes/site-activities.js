@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { notifyRole } = require('../utils/notifications');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -121,6 +122,17 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), upload.array('photo
     const [columns] = await db.execute('DESCRIBE site_activities');
     const columnNames = columns.map(col => col.Field);
 
+    // Add workforce_count column if missing (crms.sql legacy schema doesn't have it)
+    let hasWorkforceColumn = columnNames.includes('workforce_count');
+    if (!hasWorkforceColumn) {
+      try {
+        await db.execute('ALTER TABLE site_activities ADD COLUMN workforce_count INT DEFAULT 0');
+        hasWorkforceColumn = true;
+      } catch (alterErr) {
+        console.warn('Could not add workforce_count column:', alterErr.message);
+      }
+    }
+
     let insertSql;
     let params;
 
@@ -145,24 +157,26 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), upload.array('photo
       ];
     } else {
       // Legacy schema from crms.sql: description / photos_path / incidents
-      insertSql = `
-        INSERT INTO site_activities
-          (site_id, reported_by, activity_date, progress_percentage, description, photos_path, weather_conditions, incidents)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-      params = [
-        site_id,
-        req.user.id,
-        activity_date,
-        progress_percentage || 0,
-        work_description || null,
-        JSON.stringify(photoPaths),
-        weather_conditions || '',
-        issues_encountered || ''
-      ];
+      // workforce_count is added via ALTER above if missing
+      insertSql = hasWorkforceColumn
+        ? `INSERT INTO site_activities
+            (site_id, reported_by, activity_date, progress_percentage, description, photos_path, weather_conditions, incidents, workforce_count)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO site_activities
+            (site_id, reported_by, activity_date, progress_percentage, description, photos_path, weather_conditions, incidents)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+      params = hasWorkforceColumn
+        ? [site_id, req.user.id, activity_date, progress_percentage || 0, work_description || null, JSON.stringify(photoPaths), weather_conditions || '', issues_encountered || '', workforce_count || 0]
+        : [site_id, req.user.id, activity_date, progress_percentage || 0, work_description || null, JSON.stringify(photoPaths), weather_conditions || '', issues_encountered || ''];
     }
 
     const [result] = await db.execute(insertSql, params);
+
+    try {
+      const [s] = await db.execute('SELECT s.name as site_name FROM site_activities sa LEFT JOIN sites s ON sa.site_id = s.id WHERE sa.id = ?', [result.insertId]);
+      const siteName = s && s[0] && s[0].site_name;
+      await notifyRole('PROJECT_MANAGER', `New site activity reported for ${siteName || 'site'}`);
+    } catch (nErr) { console.error('Notification error:', nErr); }
 
     res.status(201).json({ message: 'Site activity recorded successfully', activityId: result.insertId });
   } catch (error) {

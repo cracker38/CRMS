@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { notifyRole, createNotification } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -74,15 +75,18 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR', 'PROJECT_MANAGER'), 
       [site_id, req.user.id, material_id, quantity, priority || 'NORMAL', notes || null]
     );
 
-    // Log audit (best-effort)
     try {
       await db.execute(
         'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
         [req.user.id, 'CREATE_MATERIAL_REQUEST', 'material_requests', result.insertId, JSON.stringify(req.body)]
       );
-    } catch (auditError) {
-      console.error('Audit log error (material request):', auditError);
-    }
+    } catch (auditError) { console.error('Audit log error (material request):', auditError); }
+
+    try {
+      const [mr] = await db.execute('SELECT m.name as material_name, s.name as site_name FROM material_requests mr LEFT JOIN materials m ON mr.material_id = m.id LEFT JOIN sites s ON mr.site_id = s.id WHERE mr.id = ?', [result.insertId]);
+      const mat = mr && mr[0];
+      await notifyRole('PROJECT_MANAGER', `New material request: ${mat?.material_name || 'Materials'} for ${mat?.site_name || 'site'} (pending approval)`);
+    } catch (nErr) { console.error('Notification error:', nErr); }
 
     res.status(201).json({ message: 'Material request created successfully', id: result.insertId });
   } catch (error) {
@@ -116,12 +120,13 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
       ['APPROVED', req.user.id, req.params.id]
     );
     
-    // Log audit
     await db.execute(
       'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
       [req.user.id, 'APPROVE_MATERIAL_REQUEST', 'material_requests', req.params.id, JSON.stringify({ status: 'APPROVED' })]
     );
-    
+    try {
+      await createNotification(requests[0].requested_by, 'Your material request has been approved');
+    } catch (nErr) { console.error('Notification error:', nErr); }
     res.json({ message: 'Material request approved successfully' });
   } catch (error) {
     console.error('Approve material request error:', error);
@@ -156,12 +161,13 @@ router.put('/:id/reject', authenticate, authorize('PROJECT_MANAGER'), async (req
       ['REJECTED', req.user.id, reason || null, req.params.id]
     );
     
-    // Log audit
     await db.execute(
       'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
       [req.user.id, 'REJECT_MATERIAL_REQUEST', 'material_requests', req.params.id, JSON.stringify({ status: 'REJECTED', reason })]
     );
-    
+    try {
+      await createNotification(requests[0].requested_by, 'Your material request has been rejected' + (reason ? `: ${reason}` : ''));
+    } catch (nErr) { console.error('Notification error:', nErr); }
     res.json({ message: 'Material request rejected' });
   } catch (error) {
     console.error('Reject material request error:', error);

@@ -7,46 +7,87 @@ const router = express.Router();
 // Get equipment list / status
 router.get('/', authenticate, async (req, res) => {
   try {
-    // Check if equipment table exists
     try {
       await db.execute('SELECT 1 FROM equipment LIMIT 1');
     } catch (tableError) {
-      // Table doesn't exist yet – treat as no equipment configured
       return res.json([]);
     }
 
-    // Try to include site/project info if schema supports it
-    let baseQuery = `
-      SELECT e.*,
-        s.name AS site_name,
-        p.name AS project_name
-      FROM equipment e
-      LEFT JOIN sites s ON e.site_id = s.id
-      LEFT JOIN projects p ON s.project_id = p.id
-    `;
-
-    const params = [];
-
-    if (req.user.role === 'SITE_SUPERVISOR') {
-      baseQuery += ' WHERE s.supervisor_id = ?';
-      params.push(req.user.id);
-    }
-
-    baseQuery += ' ORDER BY e.name';
-
+    // Ensure equipment has site_id (add if missing for site visibility)
+    let hasSiteId = false;
     try {
-      const [equipment] = await db.execute(baseQuery, params);
-      return res.json(equipment);
-    } catch (joinError) {
-      // If schema doesn't have site_id / project relation yet, fall back to plain equipment list
-      if (joinError.code === 'ER_BAD_FIELD_ERROR') {
-        const [equipment] = await db.execute(
-          'SELECT e.*, NULL AS site_name, NULL AS project_name FROM equipment e ORDER BY e.name'
-        );
-        return res.json(equipment);
+      const [cols] = await db.execute('DESCRIBE equipment');
+      hasSiteId = cols.some(c => c.Field === 'site_id');
+      if (!hasSiteId) {
+        try {
+          await db.execute('ALTER TABLE equipment ADD COLUMN site_id INT NULL');
+        } catch (alterErr) {
+          if (alterErr.code !== 'ER_DUP_FIELDNAME') throw alterErr;
+        }
+        hasSiteId = true;
       }
-      throw joinError;
+    } catch (_) {}
+
+    if (hasSiteId) {
+      const baseQuery = `
+        SELECT e.*,
+          COALESCE(s.name, (
+            SELECT st.name FROM equipment_requests er
+            INNER JOIN sites st ON er.site_id = st.id
+            WHERE er.equipment_id = e.id AND er.status IN ('APPROVED','FULFILLED','PENDING')
+            ORDER BY er.needed_from DESC, er.created_at DESC LIMIT 1
+          )) AS site_name,
+          COALESCE(p.name, (
+            SELECT pt.name FROM equipment_requests er
+            INNER JOIN sites st ON er.site_id = st.id
+            LEFT JOIN projects pt ON st.project_id = pt.id
+            WHERE er.equipment_id = e.id AND er.status IN ('APPROVED','FULFILLED','PENDING')
+            ORDER BY er.needed_from DESC, er.created_at DESC LIMIT 1
+          )) AS project_name
+        FROM equipment e
+        LEFT JOIN sites s ON e.site_id = s.id
+        LEFT JOIN projects p ON s.project_id = p.id
+        ORDER BY e.name
+      `;
+      let equipmentQuery = baseQuery.replace(/\s+/g, ' ').trim();
+      let params = [];
+      try {
+        await db.execute('SELECT 1 FROM equipment_requests LIMIT 1');
+      } catch (_) {
+        equipmentQuery = `
+          SELECT e.*, s.name AS site_name, p.name AS project_name
+          FROM equipment e
+          LEFT JOIN sites s ON e.site_id = s.id
+          LEFT JOIN projects p ON s.project_id = p.id
+          ORDER BY e.name
+        `;
+      }
+      const [equipment] = await db.execute(equipmentQuery.replace(/\s+/g, ' ').trim(), params);
+      return res.json(equipment);
     }
+
+    // No site_id: return all equipment, derive site from equipment_requests when linked
+    let equipmentQuery = `
+      SELECT e.*,
+        (SELECT s.name FROM equipment_requests er
+         INNER JOIN sites s ON er.site_id = s.id
+         WHERE er.equipment_id = e.id AND er.status IN ('APPROVED','FULFILLED','PENDING')
+         ORDER BY er.needed_from DESC, er.created_at DESC LIMIT 1) AS site_name,
+        (SELECT p.name FROM equipment_requests er
+         INNER JOIN sites s ON er.site_id = s.id
+         LEFT JOIN projects p ON s.project_id = p.id
+         WHERE er.equipment_id = e.id AND er.status IN ('APPROVED','FULFILLED','PENDING')
+         ORDER BY er.needed_from DESC, er.created_at DESC LIMIT 1) AS project_name
+      FROM equipment e
+      ORDER BY e.name
+    `;
+    try {
+      await db.execute('SELECT 1 FROM equipment_requests LIMIT 1');
+    } catch (_) {
+      equipmentQuery = 'SELECT e.*, NULL AS site_name, NULL AS project_name FROM equipment e ORDER BY e.name';
+    }
+    const [equipment] = await db.execute(equipmentQuery.replace(/\s+/g, ' ').trim());
+    return res.json(equipment);
   } catch (error) {
     console.error('Get equipment error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -101,13 +142,41 @@ router.post('/', authenticate, authorize('SYSTEM_ADMIN'), async (req, res) => {
 // Update equipment usage (Site Supervisor)
 router.put('/:id/usage', authenticate, authorize('SITE_SUPERVISOR'), async (req, res) => {
   try {
-    const { hours_used, status, notes } = req.body;
-    
-    await db.execute(
-      'UPDATE equipment SET hours_used = ?, status = ?, last_used = NOW(), notes = ? WHERE id = ?',
-      [hours_used, status, notes, req.params.id]
-    );
-    
+    const { hours_used, status, notes, site_id } = req.body;
+    const equipmentId = req.params.id;
+
+    const [rows] = await db.execute('SELECT id FROM equipment WHERE id = ?', [equipmentId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Equipment not found' });
+    }
+
+    const safeHours = Number(hours_used) || 0;
+    const safeStatus = status || 'AVAILABLE';
+    const safeNotes = notes != null ? String(notes) : '';
+    let safeSiteId = site_id ? parseInt(site_id, 10) : null;
+    if (safeSiteId) {
+      const [siteRows] = await db.execute('SELECT id FROM sites WHERE id = ?', [safeSiteId]);
+      if (siteRows.length === 0) safeSiteId = null;
+    }
+
+    let updateSql = 'UPDATE equipment SET hours_used = ?, status = ?, last_used = NOW()';
+    const updateParams = [safeHours, safeStatus];
+
+    try {
+      const [cols] = await db.execute('DESCRIBE equipment');
+      if (cols.some(c => c.Field === 'notes')) {
+        updateSql += ', notes = ?';
+        updateParams.push(safeNotes);
+      }
+      if (cols.some(c => c.Field === 'site_id') && safeSiteId) {
+        updateSql += ', site_id = ?';
+        updateParams.push(safeSiteId);
+      }
+    } catch (_) {}
+    updateSql += ' WHERE id = ?';
+    updateParams.push(equipmentId);
+
+    await db.execute(updateSql, updateParams);
     res.json({ message: 'Equipment usage updated successfully' });
   } catch (error) {
     console.error('Update equipment error:', error);

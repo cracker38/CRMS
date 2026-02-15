@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
-const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
+const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [sites, setSites] = useState([]);
@@ -14,6 +14,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [siteActivities, setSiteActivities] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [equipment, setEquipment] = useState([]);
+  const [equipmentRequests, setEquipmentRequests] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,8 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [showEquipmentRequestModal, setShowEquipmentRequestModal] = useState(false);
+  const [showEquipmentUsageModal, setShowEquipmentUsageModal] = useState(false);
+  const [selectedEquipment, setSelectedEquipment] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReportType, setSelectedReportType] = useState(null);
   const [reportData, setReportData] = useState(null);
@@ -57,14 +60,16 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
   // Update stats when data changes
   useEffect(() => {
+    const pendingMaterial = (materialRequests || []).filter(r => r.status === 'PENDING').length;
+    const pendingEquipment = (equipmentRequests || []).filter(r => r.status === 'PENDING').length;
     setStats({
       totalSites: sites.length,
-      pendingRequests: materialRequests.filter(r => r.status === 'PENDING').length,
+      pendingRequests: pendingMaterial + pendingEquipment,
       totalActivities: siteActivities.length,
       totalAttendance: attendance.length,
-      activeEquipment: equipment.filter(e => e.status === 'ACTIVE').length
+      activeEquipment: (equipment || []).filter(e => e.status === 'IN_USE' || e.status === 'IN USE').length
     });
-  }, [sites, materialRequests, siteActivities, attendance, equipment]);
+  }, [sites, materialRequests, siteActivities, attendance, equipment, equipmentRequests]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -128,10 +133,23 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         });
         if (equipmentRes.ok) {
           const equipmentData = await equipmentRes.json();
-          setEquipment(equipmentData);
+          setEquipment(Array.isArray(equipmentData) ? equipmentData : []);
         }
       } catch (e) {
         console.log('Error fetching equipment:', e);
+      }
+
+      // Fetch equipment requests
+      try {
+        const erRes = await fetch('http://localhost:5000/api/equipment-requests', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (erRes.ok) {
+          const erData = await erRes.json();
+          setEquipmentRequests(Array.isArray(erData) ? erData : []);
+        }
+      } catch (e) {
+        console.log('Error fetching equipment requests:', e);
       }
 
       // Fetch materials for dropdown
@@ -200,6 +218,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       await fetchData();
       setShowMaterialRequestModal(false);
+      onRefreshNotifications?.();
       alert('Material request submitted successfully');
     } catch (error) {
       console.error('Error creating material request:', error);
@@ -228,6 +247,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       if (response.ok) {
         await fetchData();
         setShowActivityModal(false);
+        onRefreshNotifications?.();
         alert('Daily activity recorded successfully');
       } else {
         const error = await response.json();
@@ -272,6 +292,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       await fetchData();
       setShowAttendanceModal(false);
+      onRefreshNotifications?.();
       alert('Attendance recorded successfully');
     } catch (error) {
       console.error('Error recording attendance:', error);
@@ -773,53 +794,125 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         )}
 
           {activeTab === 'equipment' && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Equipment Usage</h3>
+            <div className="card card-outline card-primary">
+              <div className="card-header bg-primary" style={{ color: '#fff' }}>
+                <h3 className="card-title">
+                  <i className="fas fa-tools mr-2"></i>Equipment Usage
+                </h3>
                 <div className="card-tools">
                   <button
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-light btn-sm"
                     onClick={() => setShowEquipmentRequestModal(true)}
                   >
-                    <i className="fas fa-plus mr-1"></i>
-                    Request Equipment
+                    <i className="fas fa-plus mr-1"></i>Request Equipment
                   </button>
                 </div>
               </div>
-              <div className="card-body">
-                <table className="table table-bordered table-striped">
-                  <thead>
-                    <tr>
-                      <th>Equipment</th>
-                      <th>Site</th>
-                      <th>Status</th>
-                      <th>Hours Used</th>
-                      <th>Last Used</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {equipment.map(item => (
-                      <tr key={item.id}>
-                        <td>{item.name || 'N/A'}</td>
-                        <td>{item.site_name || 'N/A'}</td>
-                        <td>
-                          <span className={`badge badge-${item.status === 'ACTIVE' ? 'success' : item.status === 'MAINTENANCE' ? 'warning' : 'danger'}`}>
-                            {item.status || 'N/A'}
-                          </span>
-                        </td>
-                        <td>{item.hours_used || 0}</td>
-                        <td>{item.last_used ? new Date(item.last_used).toLocaleDateString() : 'N/A'}</td>
-                      </tr>
-                    ))}
-                    {equipment.length === 0 && (
+              <div className="card-body p-0">
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped table-hover mb-0">
+                    <thead className="thead-light">
                       <tr>
-                        <td colSpan="5" className="text-center">No equipment found</td>
+                        <th>Equipment</th>
+                        <th>Site</th>
+                        <th>Status</th>
+                        <th className="text-right">Hours Used</th>
+                        <th>Last Used</th>
+                        <th className="text-center" style={{ width: '140px' }}>Actions</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {equipment.map(item => (
+                        <tr key={item.id}>
+                          <td>
+                            <strong>{item.name || 'N/A'}</strong>
+                            {item.type && <small className="d-block text-muted">{item.type}</small>}
+                          </td>
+                          <td>{item.site_name || '—'}</td>
+                          <td>
+                            <span className={`badge badge-${
+                              item.status === 'IN_USE' || item.status === 'IN USE' ? 'success' :
+                              item.status === 'MAINTENANCE' ? 'warning' :
+                              item.status === 'RETIRED' ? 'secondary' : 'info'
+                            }`}>
+                              {item.status ? String(item.status).replace(/_/g, ' ') : 'N/A'}
+                            </span>
+                          </td>
+                          <td className="text-right">
+                            <span className="font-weight-bold">{parseFloat(item.hours_used || 0).toFixed(1)}</span>
+                            <small className="text-muted ml-1">hrs</small>
+                          </td>
+                          <td>{item.last_used ? new Date(item.last_used).toLocaleDateString() : '—'}</td>
+                          <td className="text-center">
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => { setSelectedEquipment(item); setShowEquipmentUsageModal(true); }}
+                              title="Log usage hours"
+                            >
+                              <i className="fas fa-clock mr-1"></i>Log Hours
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {equipment.length === 0 && (
+                        <tr>
+                          <td colSpan="6" className="text-center py-5 text-muted">
+                            <i className="fas fa-tools fa-2x mb-2 d-block opacity-50"></i>
+                            No equipment found. Contact your administrator to add equipment.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="p-3">
+                  <h5 className="mb-3">
+                    <i className="fas fa-clipboard-list mr-1"></i>My Equipment Requests
+                  </h5>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped table-sm table-hover">
+                      <thead className="thead-light">
+                        <tr>
+                          <th>Site</th>
+                          <th>Project</th>
+                          <th>Description</th>
+                          <th>Needed From</th>
+                          <th>Needed Until</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {equipmentRequests.length > 0 ? (
+                          equipmentRequests.map(er => (
+                            <tr key={er.id}>
+                              <td>{er.site_name || 'N/A'}</td>
+                              <td>{er.project_name || '-'}</td>
+                              <td>{er.description || 'N/A'}</td>
+                              <td>{er.needed_from ? new Date(er.needed_from).toLocaleDateString() : '-'}</td>
+                              <td>{er.needed_until ? new Date(er.needed_until).toLocaleDateString() : '-'}</td>
+                              <td>
+                                <span className={`badge badge-${
+                                  er.status === 'APPROVED' ? 'success' :
+                                  er.status === 'REJECTED' ? 'danger' :
+                                  er.status === 'FULFILLED' ? 'info' : 'warning'
+                                }`}>
+                                  {er.status || 'N/A'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="6" className="text-center text-muted py-3">No equipment requests yet</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-          </div>
+            </div>
         )}
 
         {activeTab === 'reports' && (
@@ -953,6 +1046,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       {showEquipmentRequestModal && (
         <EquipmentRequestModal
           sites={sites}
+          equipment={equipment}
           onClose={() => setShowEquipmentRequestModal(false)}
           onSubmit={async (payload) => {
             try {
@@ -974,6 +1068,8 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
               if (response.ok) {
                 setShowEquipmentRequestModal(false);
+                fetchData();
+                onRefreshNotifications?.();
                 alert('Equipment request submitted successfully');
               } else {
                 alert(data.message || 'Failed to submit equipment request');
@@ -981,6 +1077,41 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
             } catch (error) {
               console.error('Error submitting equipment request:', error);
               alert('Error submitting equipment request: ' + (error.message || 'Network error'));
+            }
+          }}
+        />
+      )}
+
+      {/* Equipment Usage Modal - Log Hours */}
+      {showEquipmentUsageModal && selectedEquipment && (
+        <EquipmentUsageModal
+          equipment={selectedEquipment}
+          sites={sites}
+          onClose={() => { setShowEquipmentUsageModal(false); setSelectedEquipment(null); }}
+          onSubmit={async (payload) => {
+            try {
+              const response = await fetch(`http://localhost:5000/api/equipment/${selectedEquipment.id}/usage`, {
+                method: 'PUT',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+              let data = {};
+              try { data = await response.json(); } catch (_) {}
+              if (response.ok) {
+                setShowEquipmentUsageModal(false);
+                setSelectedEquipment(null);
+                fetchData();
+                onRefreshNotifications?.();
+                alert('Equipment usage updated successfully');
+              } else {
+                alert(data.message || 'Failed to update equipment usage');
+              }
+            } catch (error) {
+              console.error('Error updating equipment usage:', error);
+              alert('Error: ' + (error.message || 'Network error'));
             }
           }}
         />
@@ -1626,9 +1757,10 @@ const AttendanceModal = ({ employees, sites, onClose, onSubmit }) => {
 };
 
 // Equipment Request Modal Component
-const EquipmentRequestModal = ({ sites, onClose, onSubmit }) => {
+const EquipmentRequestModal = ({ sites, equipment = [], onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     site_id: '',
+    equipment_id: '',
     description: '',
     needed_from: '',
     needed_until: '',
@@ -1645,7 +1777,9 @@ const EquipmentRequestModal = ({ sites, onClose, onSubmit }) => {
       alert('Please enter a description of required equipment');
       return;
     }
-    onSubmit(formData);
+    const payload = { ...formData };
+    if (!payload.equipment_id) delete payload.equipment_id;
+    onSubmit(payload);
   };
 
   return (
@@ -1687,6 +1821,25 @@ const EquipmentRequestModal = ({ sites, onClose, onSubmit }) => {
                   ))}
                 </select>
               </div>
+
+              {equipment.length > 0 && (
+                <div className="form-group">
+                  <label>Specific Equipment (optional)</label>
+                  <select
+                    className="form-control"
+                    value={formData.equipment_id}
+                    onChange={(e) => setFormData({ ...formData, equipment_id: e.target.value })}
+                  >
+                    <option value="">— Any / Generic —</option>
+                    {equipment.map(eq => (
+                      <option key={eq.id} value={eq.id}>
+                        {eq.name}{eq.type ? ` (${eq.type})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <small className="form-text text-muted">Link specific equipment so it shows the site in the Equipment table.</small>
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Equipment Description *</label>
@@ -1747,6 +1900,125 @@ const EquipmentRequestModal = ({ sites, onClose, onSubmit }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Equipment Usage Modal - Log Hours
+const EquipmentUsageModal = ({ equipment, sites = [], onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({
+    hours_used: parseFloat(equipment?.hours_used || 0),
+    status: equipment?.status || 'AVAILABLE',
+    notes: equipment?.notes || '',
+    site_id: equipment?.site_id || ''
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const hrs = parseFloat(formData.hours_used);
+    if (isNaN(hrs) || hrs < 0) {
+      alert('Please enter a valid hours value (0 or greater)');
+      return;
+    }
+    const payload = { hours_used: hrs, status: formData.status, notes: formData.notes || '' };
+    if (formData.site_id) payload.site_id = formData.site_id;
+    onSubmit(payload);
+  };
+
+  return (
+    <>
+      <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} onClick={onClose} />
+      <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} tabIndex="-1" onClick={onClose}>
+        <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content shadow">
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">
+                <i className="fas fa-clock mr-2"></i>Log Equipment Usage
+              </h5>
+              <button type="button" className="close text-white" onClick={onClose} aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="alert alert-light border mb-3">
+                <strong>{equipment?.name || 'N/A'}</strong>
+                {equipment?.type && <span className="text-muted ml-2">({equipment.type})</span>}
+                {equipment?.site_name && (
+                  <span className="badge badge-info ml-2">{equipment.site_name}</span>
+                )}
+                {equipment?.hours_used != null && (
+                  <span className="float-right badge badge-secondary">
+                    Current: {parseFloat(equipment.hours_used).toFixed(1)} hrs
+                  </span>
+                )}
+              </div>
+              <form onSubmit={handleSubmit}>
+                {sites.length > 0 && (
+                  <div className="form-group">
+                    <label className="font-weight-bold">Site (for visibility)</label>
+                    <select
+                      className="form-control"
+                      value={formData.site_id}
+                      onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
+                    >
+                      <option value="">— Not assigned —</option>
+                      {sites.map(site => (
+                        <option key={site.id} value={site.id}>
+                          {site.name}{site.project_name ? ` (${site.project_name})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <small className="form-text text-muted">Assign equipment to a site so it shows in the Equipment table.</small>
+                  </div>
+                )}
+                <div className="form-group">
+                  <label className="font-weight-bold">Total Hours Used <span className="text-danger">*</span></label>
+                  <input
+                    type="number"
+                    className="form-control form-control-lg"
+                    min="0"
+                    step="0.5"
+                    value={formData.hours_used}
+                    onChange={(e) => setFormData({ ...formData, hours_used: e.target.value })}
+                    placeholder="e.g., 24.5"
+                    required
+                  />
+                  <small className="form-text text-muted">Enter total cumulative hours this equipment has been used.</small>
+                </div>
+                <div className="form-group">
+                  <label className="font-weight-bold">Status</label>
+                  <select
+                    className="form-control"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <option value="AVAILABLE">Available</option>
+                    <option value="IN_USE">In Use</option>
+                    <option value="MAINTENANCE">Maintenance</option>
+                    <option value="RETIRED">Retired</option>
+                  </select>
+                </div>
+                <div className="form-group mb-0">
+                  <label className="font-weight-bold">Notes</label>
+                  <textarea
+                    className="form-control"
+                    rows="2"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Optional notes..."
+                  />
+                </div>
+                <div className="modal-footer px-0 pb-0 pt-3">
+                  <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">
+                    <i className="fas fa-save mr-1"></i> Save
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 

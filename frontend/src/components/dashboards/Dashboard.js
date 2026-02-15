@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SystemAdminDashboard from './SystemAdminDashboard';
@@ -9,44 +9,67 @@ import FinanceOfficerDashboard from './FinanceOfficerDashboard';
 import './Dashboard.css';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const wrapperRef = useRef(null);
+  const notificationsRef = useRef(null);
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    
-    return () => {
-      clearInterval(interval);
+    const handleClickOutside = (e) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target)) {
+        setNotificationsOpen(false);
+      }
     };
-  }, []);
+    if (notificationsOpen) document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [notificationsOpen]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) {
+        setNotifications([]);
+        return;
+      }
       const response = await fetch('http://localhost:5000/api/notifications', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${authToken}` }
       });
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data.filter(n => !n.read));
-      } else if (response.status === 404) {
-        // Endpoint doesn't exist, set empty array
+        const list = Array.isArray(data) ? data : [];
+        const unread = list.filter(n => !n.read && !n.is_read);
+        setNotifications(unread);
+      } else {
         setNotifications([]);
       }
     } catch (error) {
-      // Silently fail if notifications endpoint doesn't exist
       setNotifications([]);
     }
-  };
+  }, [token]);
+
+  const handleMarkAsRead = useCallback(async (notifId) => {
+    try {
+      const authToken = token || localStorage.getItem('token');
+      if (!authToken) return;
+      await fetch(`http://localhost:5000/api/notifications/${notifId}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      fetchNotifications();
+    } catch (e) { /* ignore */ }
+  }, [token, fetchNotifications]);
+
+  useEffect(() => {
+    if (token || user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [token, user?.id, fetchNotifications]);
 
   const handleSidebarClick = (tab) => {
     setActiveSidebarTab(tab);
@@ -55,15 +78,15 @@ const Dashboard = () => {
   const renderDashboard = () => {
     switch (user?.role) {
       case 'SYSTEM_ADMIN':
-        return <SystemAdminDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} />;
+        return <SystemAdminDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} onRefreshNotifications={fetchNotifications} />;
       case 'PROJECT_MANAGER':
-        return <ProjectManagerDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} />;
+        return <ProjectManagerDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} onRefreshNotifications={fetchNotifications} />;
       case 'SITE_SUPERVISOR':
-        return <SiteSupervisorDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} />;
+        return <SiteSupervisorDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} onRefreshNotifications={fetchNotifications} />;
       case 'PROCUREMENT_OFFICER':
-        return <ProcurementOfficerDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} />;
+        return <ProcurementOfficerDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} onRefreshNotifications={fetchNotifications} />;
       case 'FINANCE_OFFICER':
-        return <FinanceOfficerDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} />;
+        return <FinanceOfficerDashboard activeTab={activeSidebarTab} onTabChange={setActiveSidebarTab} onRefreshNotifications={fetchNotifications} />;
       default:
         return (
           <div className="alert alert-warning">
@@ -183,44 +206,65 @@ const Dashboard = () => {
         {/* Right navbar links */}
         <ul className="navbar-nav ml-auto">
           {/* Notifications Dropdown Menu */}
-          <li className="nav-item dropdown">
-            <a 
-              className="nav-link" 
-              data-toggle="dropdown" 
+          <li ref={notificationsRef} className={`nav-item dropdown ${notificationsOpen ? 'show' : ''}`}>
+            <a
+              className="nav-link"
               href="#"
               onClick={(e) => {
                 e.preventDefault();
-                if (window.$ && window.$.fn.dropdown) {
-                  window.$(e.currentTarget).dropdown('toggle');
-                } else {
-                  // Fallback if Bootstrap dropdown not initialized
-                  const dropdown = e.currentTarget.nextElementSibling;
-                  if (dropdown) {
-                    dropdown.classList.toggle('show');
-                  }
-                }
+                setNotificationsOpen(prev => !prev);
+                if (!notificationsOpen) fetchNotifications();
               }}
+              aria-expanded={notificationsOpen}
+              aria-haspopup="true"
             >
               <i className="far fa-bell"></i>
               {notifications.length > 0 && (
                 <span className="badge badge-warning navbar-badge">{notifications.length}</span>
               )}
             </a>
-            <div className="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-              <span className="dropdown-item dropdown-header">
-                {notifications.length} {notifications.length === 1 ? 'Notification' : 'Notifications'}
+            <div
+              className={`dropdown-menu dropdown-menu-lg dropdown-menu-right notifications-dropdown ${notificationsOpen ? 'show' : ''}`}
+              style={{
+                maxWidth: 'min(400px, calc(100vw - 2rem))',
+                maxHeight: 'min(400px, 70vh)',
+                overflowY: 'auto'
+              }}
+            >
+              <span className="dropdown-item dropdown-header text-wrap">
+                {notifications.length} Unread {notifications.length === 1 ? 'Notification' : 'Notifications'}
               </span>
               <div className="dropdown-divider"></div>
               {notifications.length === 0 ? (
-                <a href="#" className="dropdown-item" onClick={(e) => e.preventDefault()}>
-                  <i className="fas fa-info-circle mr-2"></i> No new notifications
-                </a>
+                <div className="dropdown-item text-center py-4 text-muted">
+                  <i className="fas fa-bell-slash fa-2x mb-2 d-block opacity-50"></i>
+                  <small>No new notifications</small>
+                </div>
               ) : (
-                notifications.slice(0, 5).map((notif, idx) => (
-                  <a key={notif.id || idx} href="#" className="dropdown-item" onClick={(e) => e.preventDefault()}>
-                    <i className="fas fa-envelope mr-2"></i> {notif.message || 'New notification'}
-                  </a>
-                ))
+                <>
+                  <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                    {notifications.slice(0, 10).map((notif, idx) => (
+                      <a
+                        key={notif.id || idx}
+                        href="#"
+                        className="dropdown-item py-2 text-wrap"
+                        style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (notif.id) handleMarkAsRead(notif.id);
+                        }}
+                      >
+                        <i className="fas fa-circle text-primary mr-2 flex-shrink-0" style={{ fontSize: '6px', verticalAlign: 'middle' }}></i>
+                        <span>{notif.message || notif.title || 'New notification'}</span>
+                      </a>
+                    ))}
+                  </div>
+                  {notifications.length > 10 && (
+                    <a href="#" className="dropdown-item dropdown-footer text-center text-muted py-2" onClick={(e) => e.preventDefault()}>
+                      <small>And {notifications.length - 10} more</small>
+                    </a>
+                  )}
+                </>
               )}
             </div>
           </li>

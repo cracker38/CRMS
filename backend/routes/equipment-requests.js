@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { notifyRole, createNotification } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -90,18 +91,29 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), async (req, res) =>
       return res.status(400).json({ message: 'Description is required' });
     }
 
-    // Verify site belongs to this supervisor (best-effort, falls back to allowing)
+    // Verify site access: supervisor of site OR has reported activities for this site
     try {
-      const [sites] = await db.execute(
+      const [bySupervisor] = await db.execute(
         'SELECT id FROM sites WHERE id = ? AND supervisor_id = ?',
         [site_id, req.user.id]
       );
-      if (sites.length === 0) {
-        return res.status(403).json({ message: 'You are not allowed to request equipment for this site' });
+      if (bySupervisor.length > 0) {
+        // OK: user is supervisor of this site
+      } else {
+        const [byActivity] = await db.execute(
+          'SELECT 1 FROM site_activities WHERE site_id = ? AND reported_by = ? LIMIT 1',
+          [site_id, req.user.id]
+        );
+        if (byActivity.length === 0) {
+          return res.status(403).json({ message: 'You are not allowed to request equipment for this site' });
+        }
       }
     } catch (siteError) {
-      if (siteError.code !== 'ER_NO_SUCH_TABLE') {
-        console.error('Site ownership check error:', siteError);
+      if (siteError.code === 'ER_NO_SUCH_TABLE') {
+        // Tables missing: skip check, allow request
+      } else {
+        console.error('Site access check error:', siteError);
+        return res.status(500).json({ message: 'Could not verify site access' });
       }
     }
 
@@ -123,15 +135,17 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), async (req, res) =>
       ]
     );
 
-    // Audit log (best-effort)
     try {
       await db.execute(
         'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
         [req.user.id, 'CREATE_EQUIPMENT_REQUEST', 'equipment_requests', result.insertId, JSON.stringify(req.body)]
       );
-    } catch (auditError) {
-      console.error('Audit log error (equipment_requests):', auditError);
-    }
+    } catch (auditError) { console.error('Audit log error (equipment_requests):', auditError); }
+    try {
+      const [er] = await db.execute('SELECT s.name as site_name FROM equipment_requests er LEFT JOIN sites s ON er.site_id = s.id WHERE er.id = ?', [result.insertId]);
+      const siteName = er && er[0] && er[0].site_name;
+      await notifyRole('PROJECT_MANAGER', `New equipment request for ${siteName || 'site'} (pending approval)`);
+    } catch (nErr) { console.error('Notification error:', nErr); }
 
     res.status(201).json({ message: 'Equipment request created successfully', id: result.insertId });
   } catch (error) {
@@ -170,16 +184,13 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
       [req.user.id, req.params.id]
     );
 
-    // Audit log (best-effort)
     try {
       await db.execute(
         'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
         [req.user.id, 'APPROVE_EQUIPMENT_REQUEST', 'equipment_requests', req.params.id, JSON.stringify({ status: 'APPROVED' })]
       );
-    } catch (auditError) {
-      console.error('Audit log error (approve equipment request):', auditError);
-    }
-
+    } catch (auditError) { console.error('Audit log error (approve equipment request):', auditError); }
+    try { await createNotification(rows[0].requested_by, 'Your equipment request has been approved'); } catch (nErr) { console.error('Notification error:', nErr); }
     res.json({ message: 'Equipment request approved successfully' });
   } catch (error) {
     console.error('Approve equipment request error:', error);
@@ -218,16 +229,13 @@ router.put('/:id/reject', authenticate, authorize('PROJECT_MANAGER'), async (req
       [reason || null, req.user.id, req.params.id]
     );
 
-    // Audit log (best-effort)
     try {
       await db.execute(
         'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
         [req.user.id, 'REJECT_EQUIPMENT_REQUEST', 'equipment_requests', req.params.id, JSON.stringify({ status: 'REJECTED', reason })]
       );
-    } catch (auditError) {
-      console.error('Audit log error (reject equipment request):', auditError);
-    }
-
+    } catch (auditError) { console.error('Audit log error (reject equipment request):', auditError); }
+    try { await createNotification(rows[0].requested_by, 'Your equipment request has been rejected' + (reason ? `: ${reason}` : '')); } catch (nErr) { console.error('Notification error:', nErr); }
     res.json({ message: 'Equipment request rejected' });
   } catch (error) {
     console.error('Reject equipment request error:', error);

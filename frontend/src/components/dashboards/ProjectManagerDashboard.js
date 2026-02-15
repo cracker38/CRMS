@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
-const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
+const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [projects, setProjects] = useState([]);
@@ -18,6 +18,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
   const [siteSupervisors, setSiteSupervisors] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [workforceSummary, setWorkforceSummary] = useState([]);
   const [equipment, setEquipment] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       let projectsData = [];
       let expensesData = [];
       let mrData = [];
+      let erData = [];
       let sitesData = [];
 
       // Fetch projects
@@ -114,7 +116,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (erRes.ok) {
-          const erData = await erRes.json();
+          erData = await erRes.json();
           setEquipmentRequests(Array.isArray(erData) ? erData : []);
         }
       } catch (e) {
@@ -160,6 +162,19 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         console.log('Error fetching employees:', e);
       }
 
+      // Fetch workforce summary (attendance aggregated by employee) for Workforce Monitoring
+      try {
+        const wsRes = await fetch('http://localhost:5000/api/employees/workforce-summary', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (wsRes.ok) {
+          const wsData = await wsRes.json();
+          setWorkforceSummary(Array.isArray(wsData) ? wsData : []);
+        }
+      } catch (e) {
+        console.log('Error fetching workforce summary:', e);
+      }
+
       // Fetch equipment for monitoring (read-only)
       try {
         const equipmentRes = await fetch('http://localhost:5000/api/equipment', {
@@ -189,14 +204,19 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
       // Calculate stats using the data we already fetched
       const totalBudget = projectsData.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0);
       const spentAmount = expensesData.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-      
+      // Active = PLANNING, IN_PROGRESS, ON_HOLD (DB schema has no 'ACTIVE')
+      const activeProjectStatuses = ['PLANNING', 'IN_PROGRESS', 'ON_HOLD'];
+      const activeCount = projectsData.filter(p => activeProjectStatuses.includes(p.status)).length;
+      const pendingMaterial = (Array.isArray(mrData) ? mrData : []).filter(r => r.status === 'PENDING').length;
+      const pendingEquipment = (Array.isArray(erData) ? erData : []).filter(r => r.status === 'PENDING').length;
+
       setStats({
         totalProjects: projectsData.length,
-        activeProjects: projectsData.filter(p => p.status === 'ACTIVE').length,
+        activeProjects: activeCount,
         completedProjects: projectsData.filter(p => p.status === 'COMPLETED').length,
         totalBudget,
         spentAmount,
-        pendingRequests: mrData.filter(r => r.status === 'PENDING').length,
+        pendingRequests: pendingMaterial + pendingEquipment,
         totalSites: sitesData.length || projectsData.reduce((sum, p) => sum + (parseInt(p.site_count) || 0), 0)
       });
     } catch (error) {
@@ -292,6 +312,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       if (response.ok) {
         fetchData();
+        onRefreshNotifications?.();
         alert('Material request approved successfully');
       } else {
         const data = await response.json();
@@ -320,6 +341,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       if (response.ok) {
         fetchData();
+        onRefreshNotifications?.();
         alert('Material request rejected');
       } else {
         const data = await response.json();
@@ -892,6 +914,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                                       const data = await res.json().catch(() => ({}));
                                       if (res.ok) {
                                         await fetchData();
+                                        onRefreshNotifications?.();
                                         alert('Equipment request approved successfully');
                                       } else {
                                         alert(data.message || 'Failed to approve equipment request');
@@ -921,6 +944,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                                       const data = await res.json().catch(() => ({}));
                                       if (res.ok) {
                                         await fetchData();
+                                        onRefreshNotifications?.();
                                         alert('Equipment request rejected');
                                       } else {
                                         alert(data.message || 'Failed to reject equipment request');
@@ -1269,20 +1293,20 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {employees.length > 0 ? (
-                          employees.slice(0, 10).map(emp => (
-                            <tr key={emp.id}>
-                              <td><strong>{emp.first_name} {emp.last_name}</strong></td>
-                              <td>-</td>
-                              <td>-</td>
-                              <td>-</td>
-                              <td>-</td>
-                              <td>-</td>
+                        {workforceSummary.length > 0 ? (
+                          workforceSummary.slice(0, 20).map((row, idx) => (
+                            <tr key={row.id || idx}>
+                              <td><strong>{(row.first_name || '')} {(row.last_name || '')}</strong>{!row.first_name && !row.last_name && row.employee_id ? ` (${row.employee_id})` : ''}</td>
+                              <td>{row.project_name || '-'}</td>
+                              <td>{row.site_name || '-'}</td>
+                              <td>{row.days_worked ?? '-'}</td>
+                              <td>{row.total_hours != null ? parseFloat(row.total_hours).toFixed(1) : '-'}</td>
+                              <td>{row.avg_hours_per_day != null ? parseFloat(row.avg_hours_per_day).toFixed(1) : '-'}</td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan="6" className="text-center py-3 text-muted">No workforce data available</td>
+                            <td colSpan="6" className="text-center py-3 text-muted">No workforce data available. Record attendance to see metrics.</td>
                           </tr>
                         )}
                       </tbody>

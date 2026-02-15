@@ -211,6 +211,33 @@
   border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
+/* Notifications dropdown - responsive */
+.notifications-dropdown {
+  max-width: min(400px, calc(100vw - 2rem));
+  max-height: min(400px, 70vh);
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 576px) {
+  .notifications-dropdown {
+    left: auto !important;
+    right: 0 !important;
+    max-width: calc(100vw - 1rem);
+    min-width: 280px;
+  }
+  
+  .notifications-dropdown .dropdown-item.dropdown-header {
+    font-size: 0.9rem;
+  }
+  
+  .notifications-dropdown .dropdown-item {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
 .main-footer {
   background: rgba(15, 23, 42, 0.98);
   color: #e5e7eb;
@@ -562,6 +589,17 @@
   font-size: 0.6rem;
   padding: 2px 5px;
   border-radius: 10px;
+}
+
+/* Notification bell - ensure tappable on mobile (44px min touch target) */
+.nav-item.dropdown .nav-link[aria-haspopup="true"] {
+  padding: 0.5rem 0.75rem;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 /* Modal enhancements */

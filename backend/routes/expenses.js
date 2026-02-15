@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { notifyRole, createNotification } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -52,10 +53,17 @@ router.post('/', authenticate, authorize('PROJECT_MANAGER', 'FINANCE_OFFICER'), 
     }
 
     const [result] = await db.execute(
-      'INSERT INTO expenses (project_id, category, description, amount, expense_date, invoice_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      `INSERT INTO expenses (project_id, category, description, amount, expense_date, invoice_number, created_by, payment_status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
       [project_id, category, description || null, numericAmount, expense_date, invoice_number || null, req.user.id]
     );
-    
+    try {
+      if (req.user.role === 'PROJECT_MANAGER') {
+        const [p] = await db.execute('SELECT name FROM projects WHERE id = ?', [project_id]);
+        const projName = p && p[0] && p[0].name;
+        await notifyRole('FINANCE_OFFICER', `New expense/invoice for ${projName || 'project'}: $${numericAmount.toFixed(2)} (pending payment)`);
+      }
+    } catch (nErr) { console.error('Notification error:', nErr); }
     res.status(201).json({ message: 'Expense created successfully', expenseId: result.insertId });
   } catch (error) {
     console.error('Create expense error:', error);
@@ -77,13 +85,22 @@ router.put('/:id/approve', authenticate, authorize('FINANCE_OFFICER'), async (re
       updateData.paid_by = req.user.id;
     }
     
+    const [expRows] = await db.execute('SELECT created_by FROM expenses WHERE id = ?', [req.params.id]);
     await db.execute(
       `UPDATE expenses SET payment_status = ?, approved_by = ?, ${payment_status === 'PAID' ? 'paid_by = ?, ' : ''} updated_at = NOW() WHERE id = ?`,
       payment_status === 'PAID' 
         ? [payment_status, req.user.id, req.user.id, req.params.id]
         : [payment_status, req.user.id, req.params.id]
     );
-    
+    try {
+      const creatorId = expRows && expRows[0] && expRows[0].created_by;
+      if (creatorId) {
+        const msg = payment_status === 'PAID' ? 'Your expense has been marked as paid' 
+          : payment_status === 'APPROVED' ? 'Your expense has been approved' 
+          : 'Your expense has been rejected';
+        await createNotification(creatorId, msg);
+      }
+    } catch (nErr) { console.error('Notification error:', nErr); }
     res.json({ message: `Expense ${payment_status.toLowerCase()} successfully` });
   } catch (error) {
     console.error('Approve expense error:', error);

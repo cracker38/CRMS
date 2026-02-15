@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
-const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
+const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [expenses, setExpenses] = useState([]);
@@ -57,14 +57,18 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
   // Update stats when data changes
   useEffect(() => {
-    const pendingPayments = expenses.filter(e => e.payment_status === 'PENDING').length;
-    const approvedPayments = expenses.filter(e => e.payment_status === 'APPROVED').length;
-    const totalExpenses = expenses.length;
-    const totalBudget = projects.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0);
-    const totalSpent = expenses
-      .filter(e => e.payment_status === 'PAID')
+    const expenseList = Array.isArray(expenses) ? expenses : [];
+    const projectList = Array.isArray(projects) ? projects : [];
+    const getStatus = (e) => (e.payment_status || 'PENDING').toString().toUpperCase();
+
+    const pendingPayments = expenseList.filter(e => getStatus(e) === 'PENDING').length;
+    const approvedPayments = expenseList.filter(e => getStatus(e) === 'APPROVED').length;
+    const totalExpenses = expenseList.length;
+    const totalBudget = projectList.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0);
+    const totalSpent = expenseList
+      .filter(e => getStatus(e) === 'PAID')
       .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
-    const pendingInvoices = expenses.filter(e => e.invoice_number && e.payment_status === 'PENDING').length;
+    const pendingInvoices = expenseList.filter(e => e.invoice_number && getStatus(e) === 'PENDING').length;
 
     setStats({
       pendingPayments,
@@ -86,7 +90,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         });
         if (expensesRes.ok) {
           const expensesData = await expensesRes.json();
-          setExpenses(expensesData);
+          setExpenses(Array.isArray(expensesData) ? expensesData : []);
         }
       } catch (e) {
         console.log('Error fetching expenses:', e);
@@ -99,7 +103,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         });
         if (projectsRes.ok) {
           const projectsData = await projectsRes.json();
-          setProjects(projectsData);
+          setProjects(Array.isArray(projectsData) ? projectsData : []);
         }
       } catch (e) {
         console.log('Error fetching projects:', e);
@@ -139,6 +143,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
         await fetchData();
         setShowPaymentModal(false);
         setSelectedExpense(null);
+        onRefreshNotifications?.();
         alert(`Payment ${status.toLowerCase()} successfully`);
       } else {
         const error = await response.json();
@@ -201,6 +206,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
       setShowInvoiceModal(false);
       await fetchData();
+      onRefreshNotifications?.();
       alert('Invoice recorded successfully as an expense');
     } catch (error) {
       console.error('Error creating invoice:', error);
@@ -593,8 +599,8 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                     <div className="card-body">
                       <p><strong>Pending:</strong> {stats.pendingPayments}</p>
                       <p><strong>Approved:</strong> {stats.approvedPayments}</p>
-                      <p><strong>Paid:</strong> {expenses.filter(e => e.payment_status === 'PAID').length}</p>
-                      <p><strong>Rejected:</strong> {expenses.filter(e => e.payment_status === 'REJECTED').length}</p>
+                      <p><strong>Paid:</strong> {(expenses || []).filter(e => (e.payment_status || '').toString().toUpperCase() === 'PAID').length}</p>
+                      <p><strong>Rejected:</strong> {(expenses || []).filter(e => (e.payment_status || '').toString().toUpperCase() === 'REJECTED').length}</p>
                     </div>
                   </div>
                 </div>
@@ -604,30 +610,27 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
 
           {activeTab === 'payments' && (
             <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Payment Management</h3>
-                <div className="card-tools">
+              <div className="card-header d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between">
+                <h3 className="card-title mb-0">Payment Management</h3>
+                <div className="d-flex flex-wrap align-items-center">
+                  <select className="form-control form-control-sm mr-2" style={{ minWidth: '120px' }} onChange={(e) => {
+                    const status = e.target.value;
+                    // Filter logic can be added here
+                  }}>
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="PAID">Paid</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
                   <button className="btn btn-primary btn-sm" onClick={fetchData}>
-                    <i className="fas fa-sync"></i> Refresh
+                    <i className="fas fa-sync mr-1"></i>Refresh
                   </button>
                 </div>
               </div>
-              <div className="card-body">
-                <div className="row mb-3">
-                  <div className="col-md-4">
-                    <select className="form-control" onChange={(e) => {
-                      const status = e.target.value;
-                      // Filter logic can be added here
-                    }}>
-                      <option value="">All Statuses</option>
-                      <option value="PENDING">Pending</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="PAID">Paid</option>
-                      <option value="REJECTED">Rejected</option>
-                    </select>
-                  </div>
-                </div>
-                <table className="table table-bordered table-striped">
+              <div className="card-body p-0">
+                <div className="table-responsive">
+                <table className="table table-bordered table-striped table-hover mb-0">
                   <thead>
                     <tr>
                       <th>Date</th>
@@ -641,7 +644,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {expenses.map(expense => (
+                    {(expenses || []).map(expense => (
                       <tr key={expense.id}>
                         <td>{new Date(expense.expense_date || expense.created_at).toLocaleDateString()}</td>
                         <td>{expense.project_name || 'N/A'}</td>
@@ -677,29 +680,29 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                         </td>
                       </tr>
                     ))}
-                    {expenses.length === 0 && (
+                    {(expenses || []).length === 0 && (
                       <tr>
                         <td colSpan="8" className="text-center">No expenses found</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
 
           {activeTab === 'invoices' && (
             <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Invoice & Receipt Management</h3>
-                <div className="card-tools">
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowInvoiceModal(true)}>
-                    <i className="fas fa-plus"></i> Add Invoice
-                  </button>
-                </div>
+              <div className="card-header d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between">
+                <h3 className="card-title mb-0">Invoice & Receipt Management</h3>
+                <button className="btn btn-primary btn-sm" onClick={() => setShowInvoiceModal(true)}>
+                  <i className="fas fa-plus mr-1"></i>Add Invoice
+                </button>
               </div>
-              <div className="card-body">
-                <table className="table table-bordered table-striped">
+              <div className="card-body p-0">
+                <div className="table-responsive">
+                <table className="table table-bordered table-striped table-hover mb-0">
                   <thead>
                     <tr>
                       <th>Invoice #</th>
@@ -712,7 +715,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {expenses.filter(e => e.invoice_number).map(expense => (
+                    {(expenses || []).filter(e => e.invoice_number).map(expense => (
                       <tr key={expense.id}>
                         <td>{expense.invoice_number}</td>
                         <td>{new Date(expense.expense_date || expense.created_at).toLocaleDateString()}</td>
@@ -741,13 +744,14 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange }) => {
                         </td>
                       </tr>
                     ))}
-                    {expenses.filter(e => e.invoice_number).length === 0 && (
+                    {(expenses || []).filter(e => e.invoice_number).length === 0 && (
                       <tr>
                         <td colSpan="7" className="text-center">No invoices found</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}

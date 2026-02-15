@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { notifyRole } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -66,6 +67,10 @@ router.post('/purchase-orders', authenticate, authorize('PROCUREMENT_OFFICER'), 
       }
       
       await connection.commit();
+      try {
+        await notifyRole('PROJECT_MANAGER', `New purchase order ${poNumber} created ($${totalAmount.toFixed(2)})`);
+        await notifyRole('FINANCE_OFFICER', `New purchase order ${poNumber} created ($${totalAmount.toFixed(2)}) - payment tracking`);
+      } catch (nErr) { console.error('Notification error:', nErr); }
       res.status(201).json({ message: 'Purchase order created successfully', poId });
     } catch (error) {
       await connection.rollback();
@@ -329,6 +334,13 @@ router.put('/purchase-orders/:id/delivery', authenticate, authorize('PROCUREMENT
     }
 
     await db.execute(query, params);
+
+    try {
+      const [po] = await db.execute('SELECT po_number, status FROM purchase_orders WHERE id = ?', [req.params.id]);
+      if (po && po[0] && (po[0].status === 'DELIVERED' || status === 'DELIVERED')) {
+        await notifyRole('PROJECT_MANAGER', `Purchase order ${po[0].po_number} has been delivered`);
+      }
+    } catch (nErr) { console.error('Notification error:', nErr); }
 
     res.json({ message: 'Delivery updated successfully' });
   } catch (error) {

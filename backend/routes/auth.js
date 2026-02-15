@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
+const { notifySystemAdmins } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -79,6 +80,10 @@ router.post('/register', authenticate, authorize('SYSTEM_ADMIN'), async (req, re
       'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
       [req.user.id, 'CREATE_USER', 'users', result.insertId, JSON.stringify({ email, first_name, last_name, role, status: status || 'ACTIVE' })]
     );
+
+    try {
+      await notifySystemAdmins(`New user ${first_name} ${last_name} (${role.replace(/_/g, ' ')}) was added to the system`);
+    } catch (nErr) { console.error('Notification error:', nErr); }
 
     res.status(201).json({ 
       message: 'User created successfully',

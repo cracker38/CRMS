@@ -4,6 +4,46 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Get workforce summary for Project Manager (aggregated attendance by employee)
+router.get('/workforce-summary', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'PROJECT_MANAGER') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    try {
+      await db.execute('SELECT 1 FROM attendance LIMIT 1');
+      await db.execute('SELECT 1 FROM employees LIMIT 1');
+    } catch (tableErr) {
+      return res.json([]);
+    }
+    const [rows] = await db.execute(`
+      SELECT 
+        e.id,
+        e.employee_id,
+        COALESCE(u.first_name, e.employee_id) as first_name,
+        COALESCE(u.last_name, '') as last_name,
+        u.email,
+        COUNT(DISTINCT a.date) as days_worked,
+        COALESCE(SUM(a.hours_worked), 0) as total_hours,
+        COALESCE(AVG(a.hours_worked), 0) as avg_hours_per_day,
+        s.name as site_name,
+        p.name as project_name
+      FROM employees e
+      LEFT JOIN users u ON e.user_id = u.id
+      LEFT JOIN attendance a ON e.id = a.employee_id
+      LEFT JOIN sites s ON a.site_id = s.id
+      LEFT JOIN projects p ON s.project_id = p.id
+      WHERE p.project_manager_id = ?
+      GROUP BY e.id, e.employee_id, u.first_name, u.last_name, u.email, s.name, p.name
+      ORDER BY total_hours DESC
+    `, [req.user.id]);
+    res.json(rows || []);
+  } catch (error) {
+    console.error('Get workforce summary error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get all employees
 router.get('/', authenticate, async (req, res) => {
   try {
