@@ -6,6 +6,25 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
+const PDF_COMPANY = {
+  name: 'YACHIN COMPANY LTD',
+  tel: 'Tel: +250 788346572',
+  email: 'Email: muyombanoemanuel88@gmail.com'
+};
+
+const loadLogoDataUrl = () =>
+  fetch((process.env.PUBLIC_URL || '') + '/logo.jpg')
+    .then((res) => (res.ok ? res.blob() : Promise.reject()))
+    .then((blob) =>
+      new Promise((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(blob);
+      })
+    )
+    .catch(() => null);
+
 const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
@@ -116,7 +135,7 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
         });
         if (poRes.ok) {
           const poData = await poRes.json();
-          setPurchaseOrders(poData);
+          setPurchaseOrders(Array.isArray(poData) ? poData : []);
         }
       } catch (e) {
         console.log('Error fetching purchase orders:', e);
@@ -254,13 +273,47 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
     }
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (!reportData || !selectedReportType) return;
+
+    let logoDataUrl = null;
+    try {
+      logoDataUrl = await loadLogoDataUrl();
+    } catch (e) {
+      console.warn('Logo load failed', e);
+    }
 
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPos = 20;
+      const margin = 15;
+      let yPos = margin;
+
+      // Header with logo and company branding
+      doc.setFillColor(66, 139, 202);
+      doc.rect(0, 0, pageWidth, 44, 'F');
+      const logoW = 38;
+      const logoH = 38;
+      const logoX = margin;
+      const logoY = 3;
+      if (logoDataUrl) {
+        try {
+          doc.setFillColor(255, 255, 255);
+          doc.rect(logoX, logoY, logoW, logoH, 'F');
+          doc.addImage(logoDataUrl, 'JPEG', logoX, logoY, logoW, logoH);
+        } catch (e) {
+          console.warn('addImage failed', e);
+        }
+      }
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(PDF_COMPANY.name, logoX + logoW + 8, logoY + 12);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${PDF_COMPANY.tel} | ${PDF_COMPANY.email}`, logoX + logoW + 8, logoY + 22);
+      doc.setTextColor(0, 0, 0);
+      yPos = 54;
 
       // Title
       doc.setFontSize(18);
@@ -687,6 +740,177 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                     )}
                   </tbody>
                 </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'purchase-orders' && (
+            <div className="card">
+              <div className="card-header d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between">
+                <h3 className="card-title mb-0">Purchase Order Approvals</h3>
+                <div className="d-flex flex-wrap align-items-center">
+                  <button className="btn btn-primary btn-sm mr-2" onClick={fetchData}>
+                    <i className="fas fa-sync mr-1"></i>Refresh
+                  </button>
+                  <small className="text-muted">
+                    Approve, draft or reject purchase orders before delivery.
+                  </small>
+                </div>
+              </div>
+              <div className="card-body">
+                {(() => {
+                  const projectList = Array.isArray(projects) ? projects : [];
+                  const expenseList = Array.isArray(expenses) ? expenses : [];
+                  const poList = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+                  const totalBudget = projectList.reduce((s, p) => s + (parseFloat(p.budget) || 0), 0);
+                  const totalSpent = expenseList
+                    .filter(e => ['APPROVED', 'PAID'].includes((e.payment_status || '').toString().toUpperCase()))
+                    .reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+                  let committedPOs = 0;
+                  poList.forEach(r => {
+                    const st = (r.status || '').toString().toUpperCase();
+                    if (!['APPROVED', 'DELIVERED', 'DRAFT'].includes(st)) return;
+                    let amt = parseFloat(r.total_amount || 0);
+                    if (st === 'DRAFT') amt = amt / 2;
+                    committedPOs += amt;
+                  });
+                  const availableBudget = totalBudget - totalSpent - committedPOs;
+                  return (
+                    <div className="alert alert-info py-2 mb-3 mb-md-0">
+                      <strong>Available budget (for approval):</strong> ${availableBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} &nbsp;
+                      <span className="text-muted">(Total budget: ${totalBudget.toLocaleString()} − Spent/approved: ${totalSpent.toLocaleString()} − Committed by POs: ${committedPOs.toLocaleString()})</span>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="card-body p-0 pt-0">
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>PO #</th>
+                        <th>Supplier</th>
+                        <th>Order Date</th>
+                        <th>Expected Delivery</th>
+                        <th>Total Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(purchaseOrders || []).map(po => {
+                        const status = (po.status || 'PENDING').toString().toUpperCase();
+                        const amount = parseFloat(po.total_amount || 0);
+                        const statusClass =
+                          status === 'DELIVERED' ? 'success'
+                          : status === 'APPROVED' ? 'primary'
+                          : status === 'PENDING' ? 'warning'
+                          : status === 'CANCELLED' ? 'danger'
+                          : status === 'REJECTED' ? 'danger'
+                          : status === 'DRAFT' ? 'secondary'
+                          : 'info';
+
+                        const canChange =
+                          !['DELIVERED', 'CANCELLED'].includes(status);
+
+                        const handleFinanceAction = async (action) => {
+                          if (!canChange) {
+                            alert('You cannot change a delivered or cancelled purchase order.');
+                            return;
+                          }
+                          try {
+                            const response = await fetch(
+                              `http://localhost:5000/api/procurement/purchase-orders/${po.id}/finance-status`,
+                              {
+                                method: 'PUT',
+                                headers: {
+                                  'Authorization': `Bearer ${token}`,
+                                  'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                  action,
+                                  notes: `Action from Finance dashboard (${action})`
+                                })
+                              }
+                            );
+
+                            const data = await response.json().catch(() => ({}));
+
+                            if (!response.ok) {
+                              const msg = data.message || 'Failed to update purchase order finance status';
+                              if (data.available !== undefined && data.required !== undefined) {
+                                alert(`${msg}\n\nAvailable: $${Number(data.available).toLocaleString()}\nRequired: $${Number(data.required).toLocaleString()}`);
+                              } else {
+                                alert(msg);
+                              }
+                              return;
+                            }
+
+                            await fetchData();
+                            onRefreshNotifications?.();
+
+                            alert(data.message || `Purchase order marked as ${action}`);
+                          } catch (err) {
+                            console.error('Finance PO status update error:', err);
+                            alert('Error updating purchase order status');
+                          }
+                        };
+
+                        return (
+                          <tr key={po.id}>
+                            <td>{po.po_number}</td>
+                            <td>{po.supplier_name || 'N/A'}</td>
+                            <td>{po.order_date ? new Date(po.order_date).toLocaleDateString() : 'N/A'}</td>
+                            <td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
+                            <td>${Number.isFinite(amount) ? amount.toFixed(2) : '0.00'}</td>
+                            <td>
+                              <span className={`badge badge-${statusClass}`}>{status}</span>
+                            </td>
+                            <td>
+                              <div className="btn-group btn-group-sm" role="group">
+                                <button
+                                  type="button"
+                                  className="btn btn-success"
+                                  disabled={!canChange || status === 'APPROVED'}
+                                  title="Approve this purchase order (reserves full amount)"
+                                  onClick={() => handleFinanceAction('APPROVE')}
+                                >
+                                  <i className="fas fa-check"></i>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  disabled={!canChange || status === 'DRAFT'}
+                                  title="Mark as draft (reserves half of the amount)"
+                                  onClick={() => handleFinanceAction('DRAFT')}
+                                >
+                                  <i className="fas fa-adjust"></i>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-danger"
+                                  disabled={!canChange || status === 'REJECTED'}
+                                  title="Reject this purchase order"
+                                  onClick={() => handleFinanceAction('REJECT')}
+                                >
+                                  <i className="fas fa-times"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {(purchaseOrders || []).length === 0 && (
+                        <tr>
+                          <td colSpan="7" className="text-center py-4 text-muted">
+                            No purchase orders found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

@@ -149,6 +149,7 @@ const Dashboard = () => {
     } else if (user?.role === 'FINANCE_OFFICER') {
       items.push(
         { id: 'payments', icon: 'fa-money-check-alt', label: 'Payments' },
+        { id: 'purchase-orders', icon: 'fa-shopping-cart', label: 'Purchase Orders' },
         { id: 'invoices', icon: 'fa-file-invoice', label: 'Invoices & Receipts' },
         { id: 'budgets', icon: 'fa-chart-pie', label: 'Budgets' },
         { id: 'reports', icon: 'fa-file-alt', label: 'Reports' }

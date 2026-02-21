@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 15, 2026 at 05:34 AM
+-- Generation Time: Feb 21, 2026 at 11:38 PM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -240,7 +240,11 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `table_name`, `record_id`, 
 (168, 3, 'CREATE_MATERIAL_REQUEST', 'material_requests', 4, NULL, '{\"site_id\":\"2\",\"material_id\":\"1\",\"quantity\":\"6\",\"priority\":\"HIGH\",\"notes\":\"gbhjjn\"}', NULL, NULL, '2026-02-15 04:31:18'),
 (169, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-15 04:31:31'),
 (170, 6, 'APPROVE_MATERIAL_REQUEST', 'material_requests', 4, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-02-15 04:31:45'),
-(171, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-15 04:31:56');
+(171, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-15 04:31:56'),
+(172, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-19 11:48:00'),
+(173, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-19 11:58:30'),
+(174, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-21 22:18:18'),
+(175, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-21 22:18:43');
 
 -- --------------------------------------------------------
 
@@ -483,8 +487,8 @@ CREATE TABLE `notifications` (
 INSERT INTO `notifications` (`id`, `user_id`, `title`, `message`, `type`, `is_read`, `related_module`, `related_id`, `created_at`, `target_role`) VALUES
 (1, NULL, 'Test notification', 'Sample notification for Project Manager - you can approve material requests', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', 'PROJECT_MANAGER'),
 (2, NULL, 'Welcome', 'Sample notification for Site Supervisor', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', 'SITE_SUPERVISOR'),
-(3, NULL, 'Payment reminder', 'Sample notification for Finance Officer', 'INFO', 0, NULL, NULL, '2026-02-15 04:25:10', 'FINANCE_OFFICER'),
-(4, NULL, 'PO update', 'Sample notification for Procurement Officer', 'INFO', 0, NULL, NULL, '2026-02-15 04:25:10', 'PROCUREMENT_OFFICER'),
+(3, NULL, 'Payment reminder', 'Sample notification for Finance Officer', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', 'FINANCE_OFFICER'),
+(4, NULL, 'PO update', 'Sample notification for Procurement Officer', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', 'PROCUREMENT_OFFICER'),
 (5, NULL, 'System broadcast', 'This is a broadcast notification visible to all users', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', NULL),
 (6, NULL, 'Admin alert', 'Sample notification for System Admin - track all system activity', 'INFO', 0, NULL, NULL, '2026-02-15 04:25:31', 'SYSTEM_ADMIN'),
 (7, NULL, 'New material request: Hammer for BK Arena 1 (pending approval)', 'New material request: Hammer for BK Arena 1 (pending approval)', 'INFO', 1, NULL, NULL, '2026-02-15 04:31:18', 'PROJECT_MANAGER'),
@@ -910,7 +914,7 @@ ALTER TABLE `attendance`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=172;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=176;
 
 --
 -- AUTO_INCREMENT for table `employees`

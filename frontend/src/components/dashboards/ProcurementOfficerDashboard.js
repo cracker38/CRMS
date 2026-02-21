@@ -6,6 +6,25 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
+const PDF_COMPANY = {
+  name: 'YACHIN COMPANY LTD',
+  tel: 'Tel: +250 788346572',
+  email: 'Email: muyombanoemanuel88@gmail.com'
+};
+
+const loadLogoDataUrl = () =>
+  fetch((process.env.PUBLIC_URL || '') + '/logo.jpg')
+    .then((res) => (res.ok ? res.blob() : Promise.reject()))
+    .then((blob) =>
+      new Promise((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(blob);
+      })
+    )
+    .catch(() => null);
+
 const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
@@ -297,13 +316,47 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
     }
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (!reportData || !selectedReportType) return;
+
+    let logoDataUrl = null;
+    try {
+      logoDataUrl = await loadLogoDataUrl();
+    } catch (e) {
+      console.warn('Logo load failed', e);
+    }
 
     try {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
-      let yPos = 20;
+      const margin = 15;
+      let yPos = margin;
+
+      // Header with logo and company branding
+      doc.setFillColor(66, 139, 202);
+      doc.rect(0, 0, pageWidth, 44, 'F');
+      const logoW = 38;
+      const logoH = 38;
+      const logoX = margin;
+      const logoY = 3;
+      if (logoDataUrl) {
+        try {
+          doc.setFillColor(255, 255, 255);
+          doc.rect(logoX, logoY, logoW, logoH, 'F');
+          doc.addImage(logoDataUrl, 'JPEG', logoX, logoY, logoW, logoH);
+        } catch (e) {
+          console.warn('addImage failed', e);
+        }
+      }
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(PDF_COMPANY.name, logoX + logoW + 8, logoY + 12);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${PDF_COMPANY.tel} | ${PDF_COMPANY.email}`, logoX + logoW + 8, logoY + 22);
+      doc.setTextColor(0, 0, 0);
+      yPos = 54;
 
       // Title
       doc.setFontSize(18);
@@ -537,31 +590,51 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                           </tr>
                         </thead>
                         <tbody>
-                          {purchaseOrders.slice(0, 10).map(po => (
-                            <tr key={po.id}>
-                              <td>{po.po_number}</td>
-                              <td>{po.supplier_name || 'N/A'}</td>
-                              <td>{new Date(po.order_date).toLocaleDateString()}</td>
-                              <td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
-                              <td>${parseFloat(po.total_amount || 0).toFixed(2)}</td>
-                              <td>
-                                <span className={`badge badge-${po.status === 'DELIVERED' ? 'success' : po.status === 'PENDING' ? 'warning' : po.status === 'CANCELLED' ? 'danger' : 'info'}`}>
-                                  {po.status || 'PENDING'}
-                                </span>
-                              </td>
-                              <td>
-                                <button 
-                                  className="btn btn-sm btn-info mr-1"
-                                  onClick={() => {
-                                    setSelectedPO(po);
-                                    setShowDeliveryModal(true);
-                                  }}
-                                >
-                                  <i className="fas fa-truck"></i> Update Delivery
-        </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {purchaseOrders.slice(0, 10).map(po => {
+                            const status = (po.status || 'PENDING').toString().toUpperCase();
+                            const canUpdateDelivery = status === 'APPROVED';
+                            const statusClass =
+                              status === 'DELIVERED' ? 'success'
+                              : status === 'APPROVED' ? 'primary'
+                              : status === 'PENDING' ? 'warning'
+                              : status === 'CANCELLED' ? 'danger'
+                              : status === 'REJECTED' ? 'danger'
+                              : status === 'DRAFT' ? 'secondary'
+                              : 'info';
+
+                            return (
+                              <tr key={po.id}>
+                                <td>{po.po_number}</td>
+                                <td>{po.supplier_name || 'N/A'}</td>
+                                <td>{new Date(po.order_date).toLocaleDateString()}</td>
+                                <td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
+                                <td>${parseFloat(po.total_amount || 0).toFixed(2)}</td>
+                                <td>
+                                  <span className={`badge badge-${statusClass}`}>
+                                    {status}
+                                  </span>
+                                </td>
+                                <td>
+                                  <button 
+                                    className="btn btn-sm btn-info mr-1"
+                                    disabled={!canUpdateDelivery}
+                                    title={
+                                      canUpdateDelivery
+                                        ? 'Update delivery status'
+                                        : 'Delivery can only be updated after Finance approves this PO'
+                                    }
+                                    onClick={() => {
+                                      if (!canUpdateDelivery) return;
+                                      setSelectedPO(po);
+                                      setShowDeliveryModal(true);
+                                    }}
+                                  >
+                                    <i className="fas fa-truck"></i> Update Delivery
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                           {purchaseOrders.length === 0 && (
                             <tr>
                               <td colSpan="7" className="text-center">No purchase orders found</td>
@@ -627,31 +700,51 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                 </tr>
               </thead>
               <tbody>
-                {purchaseOrders.map(po => (
-                  <tr key={po.id}>
-                    <td>{po.po_number}</td>
-                        <td>{po.supplier_name || 'N/A'}</td>
-                    <td>{new Date(po.order_date).toLocaleDateString()}</td>
-                        <td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
-                        <td>${parseFloat(po.total_amount || 0).toFixed(2)}</td>
-                        <td>
-                          <span className={`badge badge-${po.status === 'DELIVERED' ? 'success' : po.status === 'PENDING' ? 'warning' : po.status === 'CANCELLED' ? 'danger' : 'info'}`}>
-                            {po.status || 'PENDING'}
-                          </span>
-                        </td>
-                        <td>
-                          <button 
-                            className="btn btn-sm btn-info mr-1"
-                            onClick={() => {
-                              setSelectedPO(po);
-                              setShowDeliveryModal(true);
-                            }}
-                          >
-                            <i className="fas fa-truck"></i> Update
-                          </button>
-                    </td>
-                  </tr>
-                ))}
+                {purchaseOrders.map(po => {
+                  const status = (po.status || 'PENDING').toString().toUpperCase();
+                  const canUpdateDelivery = status === 'APPROVED';
+                  const statusClass =
+                    status === 'DELIVERED' ? 'success'
+                    : status === 'APPROVED' ? 'primary'
+                    : status === 'PENDING' ? 'warning'
+                    : status === 'CANCELLED' ? 'danger'
+                    : status === 'REJECTED' ? 'danger'
+                    : status === 'DRAFT' ? 'secondary'
+                    : 'info';
+
+                  return (
+                    <tr key={po.id}>
+                      <td>{po.po_number}</td>
+                      <td>{po.supplier_name || 'N/A'}</td>
+                      <td>{new Date(po.order_date).toLocaleDateString()}</td>
+                      <td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
+                      <td>${parseFloat(po.total_amount || 0).toFixed(2)}</td>
+                      <td>
+                        <span className={`badge badge-${statusClass}`}>
+                          {status}
+                        </span>
+                      </td>
+                      <td>
+                        <button 
+                          className="btn btn-sm btn-info mr-1"
+                          disabled={!canUpdateDelivery}
+                          title={
+                            canUpdateDelivery
+                              ? 'Update delivery status'
+                              : 'Delivery can only be updated after Finance approves this PO'
+                          }
+                          onClick={() => {
+                            if (!canUpdateDelivery) return;
+                            setSelectedPO(po);
+                            setShowDeliveryModal(true);
+                          }}
+                        >
+                          <i className="fas fa-truck"></i> Update
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                     {purchaseOrders.length === 0 && (
                       <tr>
                         <td colSpan="7" className="text-center">No purchase orders found</td>

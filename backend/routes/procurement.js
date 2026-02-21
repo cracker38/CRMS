@@ -50,10 +50,10 @@ router.post('/purchase-orders', authenticate, authorize('PROCUREMENT_OFFICER'), 
       // Calculate total
       const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
       
-      // Create PO
+      // Create PO (finance status starts as PENDING)
       const [result] = await connection.execute(
-        'INSERT INTO purchase_orders (po_number, supplier_id, created_by, order_date, expected_delivery_date, total_amount, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [poNumber, supplier_id, req.user.id, order_date, expected_delivery_date, totalAmount, notes]
+        'INSERT INTO purchase_orders (po_number, supplier_id, created_by, order_date, expected_delivery_date, total_amount, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [poNumber, supplier_id, req.user.id, order_date, expected_delivery_date, totalAmount, 'PENDING', notes]
       );
       
       const poId = result.insertId;
@@ -295,10 +295,129 @@ router.post('/quotations', authenticate, authorize('PROCUREMENT_OFFICER'), async
   }
 });
 
-// Update delivery status
+// Finance approval / draft / rejection of purchase orders
+router.put('/purchase-orders/:id/finance-status', authenticate, authorize('FINANCE_OFFICER'), async (req, res) => {
+  try {
+    const { action, notes } = req.body; // action: 'APPROVE' | 'REJECT' | 'DRAFT'
+    const allowedActions = ['APPROVE', 'REJECT', 'DRAFT'];
+    const upperAction = (action || '').toString().toUpperCase();
+
+    if (!allowedActions.includes(upperAction)) {
+      return res.status(400).json({ message: 'Invalid action. Use APPROVE, REJECT or DRAFT.' });
+    }
+
+    const [rows] = await db.execute('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Purchase order not found' });
+    }
+    const po = rows[0];
+
+    // Prevent double-approval of already delivered/cancelled orders
+    const currentStatus = (po.status || 'PENDING').toString().toUpperCase();
+    if (['DELIVERED', 'CANCELLED'].includes(currentStatus)) {
+      return res.status(400).json({ message: `Cannot change finance status for a ${currentStatus} order.` });
+    }
+
+    // Compute global available budget in finance
+    const [[projectsAgg]] = await db.execute('SELECT COALESCE(SUM(budget), 0) AS total_budget FROM projects');
+    const totalBudget = parseFloat(projectsAgg.total_budget || 0);
+
+    // Total already spent (approved or paid expenses)
+    const [[expensesAgg]] = await db.execute(`
+      SELECT COALESCE(SUM(amount), 0) AS total_spent
+      FROM expenses
+      WHERE payment_status IN ('APPROVED', 'PAID')
+    `);
+    const totalSpent = parseFloat(expensesAgg.total_spent || 0);
+
+    // Committed on other purchase orders (APPROVED / DELIVERED / DRAFT)
+    const [poRows] = await db.execute(
+      'SELECT id, status, total_amount FROM purchase_orders WHERE status IN (\'APPROVED\', \'DELIVERED\', \'DRAFT\')'
+    );
+
+    let committedFromPOs = 0;
+    for (const r of poRows) {
+      let amt = parseFloat(r.total_amount || 0);
+      const st = (r.status || '').toString().toUpperCase();
+
+      // Draft only reserves half of the amount
+      if (st === 'DRAFT') {
+        amt = amt / 2;
+      }
+
+      // Exclude current PO for now; we add it separately based on the *new* status
+      if (r.id !== po.id) {
+        committedFromPOs += amt;
+      }
+    }
+
+    const available = totalBudget - totalSpent - committedFromPOs;
+    const poTotal = parseFloat(po.total_amount || 0);
+
+    if (upperAction === 'APPROVE' && poTotal > available) {
+      return res.status(400).json({
+        message: 'Insufficient available budget to approve this purchase order',
+        available,
+        required: poTotal
+      });
+    }
+
+    // Map actions to resulting status
+    let newStatus;
+    if (upperAction === 'APPROVE') newStatus = 'APPROVED';
+    else if (upperAction === 'REJECT') newStatus = 'REJECTED';
+    else newStatus = 'DRAFT';
+
+    await db.execute(
+      `
+        UPDATE purchase_orders
+        SET status = ?, notes = CONCAT(COALESCE(notes, ''), ?), updated_at = NOW()
+        WHERE id = ?
+      `,
+      [
+        newStatus,
+        notes ? ` [FINANCE ${upperAction} BY USER ${req.user.id}: ${notes}]` : '',
+        req.params.id
+      ]
+    );
+
+    try {
+      await notifyRole(
+        'PROCUREMENT_OFFICER',
+        `Purchase order ${po.po_number} has been marked as ${newStatus} by Finance`
+      );
+    } catch (nErr) {
+      console.error('Notification error (finance-status):', nErr);
+    }
+
+    res.json({
+      message: `Purchase order finance status set to ${newStatus}`,
+      status: newStatus,
+      availableBudget: available
+    });
+  } catch (error) {
+    console.error('Finance status update error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Update delivery status (only allowed after finance approval)
 router.put('/purchase-orders/:id/delivery', authenticate, authorize('PROCUREMENT_OFFICER'), async (req, res) => {
   try {
     const { delivery_date, status, notes } = req.body;
+
+    const [rows] = await db.execute('SELECT * FROM purchase_orders WHERE id = ?', [req.params.id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Purchase order not found' });
+    }
+    const po = rows[0];
+
+    const currentStatus = (po.status || 'PENDING').toString().toUpperCase();
+    if (currentStatus !== 'APPROVED') {
+      return res.status(400).json({
+        message: 'Delivery can only be updated after Finance has approved the purchase order'
+      });
+    }
 
     // Make this robust to schema differences (some DBs may not have delivery_date)
     const [columns] = await db.execute('DESCRIBE purchase_orders');
@@ -307,40 +426,64 @@ router.put('/purchase-orders/:id/delivery', authenticate, authorize('PROCUREMENT
     let query;
     const params = [];
 
+    const finalStatus = status || 'DELIVERED';
+
     if (columnNames.includes('delivery_date')) {
-      // If an explicit delivery_date column exists, use it
       query = `
         UPDATE purchase_orders
         SET delivery_date = ?, status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW()
         WHERE id = ?
       `;
-      params.push(delivery_date, status, notes || '', req.params.id);
+      params.push(delivery_date, finalStatus, notes || '', req.params.id);
     } else if (columnNames.includes('expected_delivery_date')) {
-      // Fallback: store the delivery date in expected_delivery_date
       query = `
         UPDATE purchase_orders
         SET expected_delivery_date = ?, status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW()
         WHERE id = ?
       `;
-      params.push(delivery_date, status, notes || '', req.params.id);
+      params.push(delivery_date, finalStatus, notes || '', req.params.id);
     } else {
-      // Minimal fallback: only update status and notes
       query = `
         UPDATE purchase_orders
         SET status = ?, notes = CONCAT(COALESCE(notes, ""), " ", ?), updated_at = NOW()
         WHERE id = ?
       `;
-      params.push(status, notes || '', req.params.id);
+      params.push(finalStatus, notes || '', req.params.id);
     }
 
     await db.execute(query, params);
 
     try {
-      const [po] = await db.execute('SELECT po_number, status FROM purchase_orders WHERE id = ?', [req.params.id]);
-      if (po && po[0] && (po[0].status === 'DELIVERED' || status === 'DELIVERED')) {
-        await notifyRole('PROJECT_MANAGER', `Purchase order ${po[0].po_number} has been delivered`);
+      const [updatedPoRows] = await db.execute(
+        'SELECT po_number, status, total_amount, created_by FROM purchase_orders WHERE id = ?',
+        [req.params.id]
+      );
+      const updatedPo = updatedPoRows && updatedPoRows[0];
+
+      if (updatedPo && (updatedPo.status === 'DELIVERED' || finalStatus === 'DELIVERED')) {
+        await notifyRole('PROJECT_MANAGER', `Purchase order ${updatedPo.po_number} has been delivered`);
+
+        // When the order is delivered, record the full remaining price as a paid expense
+        try {
+          const [cols] = await db.execute('DESCRIBE expenses');
+          const hasPaidBy = cols.some(c => c.Field === 'paid_by');
+          await db.execute(
+            hasPaidBy
+              ? `INSERT INTO expenses (project_id, category, description, amount, expense_date, payment_status, created_by, paid_by)
+                 VALUES (NULL, 'SUPPLIES', ?, ?, CURDATE(), 'PAID', ?, ?)`
+              : `INSERT INTO expenses (project_id, category, description, amount, expense_date, payment_status, created_by)
+                 VALUES (NULL, 'SUPPLIES', ?, ?, CURDATE(), 'PAID', ?)`,
+            hasPaidBy
+              ? [`PO ${updatedPo.po_number} delivered`, parseFloat(updatedPo.total_amount || 0), updatedPo.created_by, req.user.id]
+              : [`PO ${updatedPo.po_number} delivered`, parseFloat(updatedPo.total_amount || 0), updatedPo.created_by]
+          );
+        } catch (expenseErr) {
+          console.error('Failed to create delivery expense for PO:', expenseErr);
+        }
       }
-    } catch (nErr) { console.error('Notification error:', nErr); }
+    } catch (nErr) {
+      console.error('Notification error (delivery):', nErr);
+    }
 
     res.json({ message: 'Delivery updated successfully' });
   } catch (error) {
@@ -350,4 +493,3 @@ router.put('/purchase-orders/:id/delivery', authenticate, authorize('PROCUREMENT
 });
 
 module.exports = router;
-

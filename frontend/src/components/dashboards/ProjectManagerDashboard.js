@@ -6,6 +6,26 @@ import * as XLSX from 'xlsx';
 // Import jspdf-autotable as side effect - it extends jsPDF prototype
 import 'jspdf-autotable';
 
+// Company branding for PDF reports (YACHIN COMPANY LTD logo)
+const PDF_COMPANY = {
+  name: 'YACHIN COMPANY LTD',
+  tel: 'Tel: +250 788346572',
+  email: 'Email: muyombanoemanuel88@gmail.com'
+};
+
+const loadLogoDataUrl = () =>
+  fetch((process.env.PUBLIC_URL || '') + '/logo.jpg')
+    .then((res) => (res.ok ? res.blob() : Promise.reject()))
+    .then((blob) =>
+      new Promise((resolve) => {
+        const r = new FileReader();
+        r.onloadend = () => resolve(r.result);
+        r.onerror = () => resolve(null);
+        r.readAsDataURL(blob);
+      })
+    )
+    .catch(() => null);
+
 const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
   const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
@@ -1010,32 +1030,79 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                   </h3>
                 </div>
                 <div className="card-body p-0">
-                  <div className="table-responsive">
-                    <table className="table table-hover">
-                      <thead>
+                  <div className="p-3 border-bottom d-flex align-items-center justify-content-between" style={{ gap: 12 }}>
+                    <div className="d-flex align-items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+                      <span className="badge badge-light border">
+                        Total: <strong>{Array.isArray(purchaseOrders) ? purchaseOrders.length : 0}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Delivered: <strong>{Array.isArray(purchaseOrders) ? purchaseOrders.filter(p => p.status === 'DELIVERED').length : 0}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Pending: <strong>{Array.isArray(purchaseOrders) ? purchaseOrders.filter(p => p.status === 'PENDING').length : 0}</strong>
+                      </span>
+                    </div>
+                    <small className="text-muted">
+                      Showing latest 5. Scroll to see all columns.
+                    </small>
+                  </div>
+
+                  <div className="table-responsive" style={{ maxHeight: 340 }}>
+                    <table className="table table-hover table-sm mb-0">
+                      <thead className="thead-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                         <tr>
-                          <th>PO Number</th>
-                          <th>Supplier</th>
-                          <th>Amount</th>
-                          <th>Status</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>PO #</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Supplier</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Order date</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Expected delivery</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Total</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Status</th>
+                          <th style={{ minWidth: 220 }}>Notes</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Created by</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Created at</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Updated at</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {purchaseOrders.slice(0, 5).map(po => (
-                          <tr key={po.id}>
-                            <td><strong>{po.po_number || 'N/A'}</strong></td>
-                            <td>{po.supplier_name || 'N/A'}</td>
-                            <td>${parseFloat(po.total_amount || 0).toLocaleString()}</td>
-                            <td>
-                              <span className={`badge badge-${po.status === 'APPROVED' ? 'success' : po.status === 'PENDING' ? 'warning' : 'secondary'}`}>
-                                {po.status || 'N/A'}
-                              </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {(Array.isArray(purchaseOrders) ? purchaseOrders.slice(0, 5) : []).map(po => {
+                          const creatorName = `${po.creator_first_name || ''} ${po.creator_last_name || ''}`.trim() || 'N/A';
+                          const amount = parseFloat(po.total_amount || 0);
+                          const status = po.status || 'N/A';
+                          const statusClass =
+                            status === 'APPROVED' ? 'success'
+                              : status === 'DELIVERED' ? 'primary'
+                              : status === 'PENDING' ? 'warning'
+                              : status === 'REJECTED' ? 'danger'
+                              : 'secondary';
+
+                          return (
+                            <tr key={po.id}>
+                              <td style={{ whiteSpace: 'nowrap' }}><strong>{po.po_number || 'N/A'}</strong></td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{po.supplier_name || 'N/A'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{po.order_date ? new Date(po.order_date).toLocaleDateString() : 'N/A'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString() : 'N/A'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>${Number.isFinite(amount) ? amount.toLocaleString() : '0'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                <span className={`badge badge-${statusClass}`}>{status}</span>
+                              </td>
+                              <td style={{ minWidth: 220 }}>{po.notes || '—'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{creatorName}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{po.created_at ? new Date(po.created_at).toLocaleString() : 'N/A'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{po.updated_at ? new Date(po.updated_at).toLocaleString() : 'N/A'}</td>
+                            </tr>
+                          );
+                        })}
+
+                        {(!Array.isArray(purchaseOrders) || purchaseOrders.length === 0) && (
+                          <tr>
+                            <td colSpan="10" className="text-center py-4 text-muted">
+                              No purchase orders found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1048,32 +1115,82 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                   </h3>
                 </div>
                 <div className="card-body p-0">
-                  <div className="table-responsive">
-                    <table className="table table-hover">
-                      <thead>
+                  <div className="p-3 border-bottom d-flex align-items-center justify-content-between" style={{ gap: 12 }}>
+                    <div className="d-flex align-items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+                      <span className="badge badge-light border">
+                        Total: <strong>{Array.isArray(expenses) ? expenses.length : 0}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Paid: <strong>{Array.isArray(expenses) ? expenses.filter(e => e.payment_status === 'PAID').length : 0}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Pending: <strong>{Array.isArray(expenses) ? expenses.filter(e => e.payment_status === 'PENDING').length : 0}</strong>
+                      </span>
+                    </div>
+                    <small className="text-muted">
+                      Showing latest 5. Scroll to see all columns.
+                    </small>
+                  </div>
+
+                  <div className="table-responsive" style={{ maxHeight: 340 }}>
+                    <table className="table table-hover table-sm mb-0">
+                      <thead className="thead-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                         <tr>
-                          <th>Category</th>
-                          <th>Amount</th>
-                          <th>Date</th>
-                          <th>Status</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Project</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Category</th>
+                          <th style={{ minWidth: 260 }}>Description</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Amount</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Date</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Invoice #</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Status</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Created by</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Approved by</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Created at</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Updated at</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {expenses.slice(0, 5).map(expense => (
-                          <tr key={expense.id}>
-                            <td>{expense.category || 'N/A'}</td>
-                            <td>${parseFloat(expense.amount || 0).toLocaleString()}</td>
-                            <td>{expense.expense_date ? new Date(expense.expense_date).toLocaleDateString() : 'N/A'}</td>
-                            <td>
-                              <span className={`badge badge-${expense.payment_status === 'PAID' ? 'success' : expense.payment_status === 'PENDING' ? 'warning' : 'secondary'}`}>
-                                {expense.payment_status || 'N/A'}
-                              </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {(Array.isArray(expenses) ? expenses.slice(0, 5) : []).map(expense => {
+                          const creatorName = `${expense.creator_first_name || ''} ${expense.creator_last_name || ''}`.trim() || 'N/A';
+                          const approverName = `${expense.approver_first_name || ''} ${expense.approver_last_name || ''}`.trim() || '—';
+                          const amount = parseFloat(expense.amount || 0);
+                          const status = expense.payment_status || 'N/A';
+                          const statusClass =
+                            status === 'PAID' ? 'success'
+                              : status === 'APPROVED' ? 'primary'
+                              : status === 'PENDING' ? 'warning'
+                              : status === 'REJECTED' ? 'danger'
+                              : 'secondary';
+
+                          return (
+                            <tr key={expense.id}>
+                              <td style={{ whiteSpace: 'nowrap' }}>{expense.project_name || `#${expense.project_id || 'N/A'}`}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{expense.category || 'N/A'}</td>
+                              <td style={{ minWidth: 260 }}>{expense.description || '—'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>${Number.isFinite(amount) ? amount.toLocaleString() : '0'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{expense.expense_date ? new Date(expense.expense_date).toLocaleDateString() : 'N/A'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{expense.invoice_number || '—'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                <span className={`badge badge-${statusClass}`}>{status}</span>
+                              </td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{creatorName}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{approverName}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{expense.created_at ? new Date(expense.created_at).toLocaleString() : 'N/A'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{expense.updated_at ? new Date(expense.updated_at).toLocaleString() : 'N/A'}</td>
+                            </tr>
+                          );
+                        })}
+
+                        {(!Array.isArray(expenses) || expenses.length === 0) && (
+                          <tr>
+                            <td colSpan="11" className="text-center py-4 text-muted">
+                              No expenses found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2071,7 +2188,7 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
     onSubmit(filters);
   };
 
-  const handleExport = (format) => {
+  const handleExport = async (format) => {
     if (!reportData) {
       alert('Please generate the report first');
       return;
@@ -2086,13 +2203,20 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
     const fileName = `${reportTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
 
     if (format === 'PDF') {
-      exportToPDF(reportData, reportTitle, fileName);
+      await exportToPDF(reportData, reportTitle, fileName);
     } else if (format === 'Excel') {
       exportToExcel(reportData, reportTitle, fileName);
     }
   };
 
-  const exportToPDF = (data, title, fileName) => {
+  const exportToPDF = async (data, title, fileName) => {
+    let logoDataUrl = null;
+    try {
+      logoDataUrl = await loadLogoDataUrl();
+    } catch (e) {
+      console.warn('Logo load failed', e);
+    }
+
     try {
       const doc = new jsPDF('portrait', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -2107,6 +2231,42 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
         alert('PDF export plugin not loaded. Please refresh the page.\n\nIf the issue persists, check the browser console.');
         return;
       }
+
+      // Draw PDF header with logo and company branding
+      const drawPdfHeader = (reportTitle, genDate, headerHeight = 48) => {
+        doc.setFillColor(66, 139, 202);
+        doc.rect(0, 0, pageWidth, headerHeight, 'F');
+        const logoW = 38;
+        const logoH = 38;
+        const logoX = margin;
+        const logoY = (headerHeight - logoH) / 2;
+        if (logoDataUrl) {
+          try {
+            doc.setFillColor(255, 255, 255);
+            doc.rect(logoX, logoY, logoW, logoH, 'F');
+            doc.addImage(logoDataUrl, 'JPEG', logoX, logoY, logoW, logoH);
+          } catch (e) {
+            console.warn('addImage failed', e);
+          }
+        }
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text(PDF_COMPANY.name, logoX + logoW + 8, logoY + 12);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${PDF_COMPANY.tel} | ${PDF_COMPANY.email}`, logoX + logoW + 8, logoY + 22);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text(reportTitle, margin, headerHeight - 10);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        if (genDate) {
+          const gw = doc.getTextWidth(genDate);
+          doc.text(genDate, pageWidth - margin - gw, headerHeight - 10);
+        }
+        doc.setTextColor(0, 0, 0);
+      };
 
       // Helper function to format values
       const formatValue = (val, key = '') => {
@@ -2142,36 +2302,15 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
             yPos = margin;
           }
 
-          // Header with colored background
-          doc.setFillColor(66, 139, 202); // Blue
-          doc.rect(0, 0, pageWidth, 40, 'F');
-          
-          // Company/System Name
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(12);
-          doc.setFont(undefined, 'bold');
-          doc.text('Construction Resource Management System (CRMS)', margin, 15);
-          
-          // Report Title
-          doc.setFontSize(16);
-          doc.text('PROJECT SUMMARY REPORT', margin, 25);
-          
-          // Report Date
-          doc.setFontSize(9);
-          doc.setFont(undefined, 'normal');
-          const genDate = `Generated: ${new Date().toLocaleString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
+          const genDate = `Generated: ${new Date().toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
           })}`;
-          const genDateWidth = doc.getTextWidth(genDate);
-          doc.text(genDate, pageWidth - margin - genDateWidth, 25);
-          
-          // Reset text color
-          doc.setTextColor(0, 0, 0);
-          yPos = 50;
+          drawPdfHeader('PROJECT SUMMARY REPORT', genDate, 48);
+          yPos = 58;
 
           // Project Information Card
           doc.setFillColor(245, 245, 245);
@@ -2362,7 +2501,7 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
           doc.line(margin, footerY, pageWidth - margin, footerY);
           doc.setFontSize(8);
           doc.setTextColor(128, 128, 128);
-          const footerText = `CRMS - Construction Resource Management System | Page ${doc.internal.getNumberOfPages()}`;
+          const footerText = `${PDF_COMPANY.name} | ${PDF_COMPANY.tel} | ${PDF_COMPANY.email} | Page ${doc.internal.getNumberOfPages()}`;
           const footerTextWidth = doc.getTextWidth(footerText);
           doc.text(
             footerText,
@@ -2372,18 +2511,15 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
         });
       } else {
         // Generic report format for other report types
-        // Header
-        doc.setFillColor(66, 139, 202);
-        doc.rect(0, 0, pageWidth, 35, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('CRMS - Construction Resource Management System', margin, 15);
-        doc.setFontSize(12);
-        doc.text(title, margin, 25);
-        doc.setTextColor(0, 0, 0);
-        
-        let yPos = 45;
+        const genDateGeneric = `Generated: ${new Date().toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`;
+        drawPdfHeader(title, genDateGeneric, 42);
+        let yPos = 52;
         
         // Report info
         if (filters.startDate || filters.endDate) {
