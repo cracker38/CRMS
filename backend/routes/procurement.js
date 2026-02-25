@@ -295,6 +295,114 @@ router.post('/quotations', authenticate, authorize('PROCUREMENT_OFFICER'), async
   }
 });
 
+// Approve quotation (Project Manager)
+router.put('/quotations/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT * FROM quotations WHERE id = ?', [req.params.id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Quotation not found' });
+    }
+    const currentStatus = (rows[0].status || 'PENDING').toString().toUpperCase();
+    if (currentStatus !== 'PENDING') {
+      return res.status(400).json({ message: `Quotation is already ${currentStatus}` });
+    }
+
+    const [cols] = await db.execute('DESCRIBE quotations');
+    const hasApprovedBy = cols.some(c => c.Field === 'approved_by');
+    const hasApprovedAt = cols.some(c => c.Field === 'approved_at');
+    const hasUpdatedAt = cols.some(c => c.Field === 'updated_at');
+
+    let query = 'UPDATE quotations SET status = ?';
+    const params = ['ACCEPTED'];
+
+    if (hasApprovedBy) {
+      query += ', approved_by = ?';
+      params.push(req.user.id);
+    }
+    if (hasApprovedAt) {
+      query += ', approved_at = NOW()';
+    }
+    if (hasUpdatedAt) {
+      query += ', updated_at = NOW()';
+    }
+
+    query += ' WHERE id = ?';
+    params.push(req.params.id);
+
+    await db.execute(query, params);
+
+    try {
+      const [q] = await db.execute('SELECT created_by FROM quotations WHERE id = ?', [req.params.id]);
+      if (q && q[0] && q[0].created_by) {
+        const { createNotification } = require('../utils/notifications');
+        await createNotification(q[0].created_by, 'Your quotation has been approved');
+      }
+    } catch (nErr) { console.error('Notification error:', nErr); }
+
+    res.json({ message: 'Quotation approved successfully' });
+  } catch (error) {
+    console.error('Approve quotation error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Reject quotation (Project Manager)
+router.put('/quotations/:id/reject', authenticate, authorize('PROJECT_MANAGER'), async (req, res) => {
+  try {
+    const { rejection_reason } = req.body || {};
+    const [rows] = await db.execute('SELECT * FROM quotations WHERE id = ?', [req.params.id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Quotation not found' });
+    }
+    const currentStatus = (rows[0].status || 'PENDING').toString().toUpperCase();
+    if (currentStatus !== 'PENDING') {
+      return res.status(400).json({ message: `Quotation is already ${currentStatus}` });
+    }
+
+    const [cols] = await db.execute('DESCRIBE quotations');
+    const hasApprovedBy = cols.some(c => c.Field === 'approved_by');
+    const hasApprovedAt = cols.some(c => c.Field === 'approved_at');
+    const hasRejectionReason = cols.some(c => c.Field === 'rejection_reason');
+    const hasUpdatedAt = cols.some(c => c.Field === 'updated_at');
+
+    let query = 'UPDATE quotations SET status = ?';
+    const params = ['REJECTED'];
+
+    if (hasApprovedBy) {
+      query += ', approved_by = ?';
+      params.push(req.user.id);
+    }
+    if (hasApprovedAt) {
+      query += ', approved_at = NOW()';
+    }
+    if (hasRejectionReason && rejection_reason) {
+      query += ', rejection_reason = ?';
+      params.push(rejection_reason);
+    }
+    if (hasUpdatedAt) {
+      query += ', updated_at = NOW()';
+    }
+
+    query += ' WHERE id = ?';
+    params.push(req.params.id);
+
+    await db.execute(query, params);
+
+    try {
+      const [q] = await db.execute('SELECT created_by FROM quotations WHERE id = ?', [req.params.id]);
+      if (q && q[0] && q[0].created_by) {
+        const { createNotification } = require('../utils/notifications');
+        await createNotification(q[0].created_by, 'Your quotation has been rejected' + (rejection_reason ? `: ${rejection_reason}` : ''));
+      }
+    } catch (nErr) { console.error('Notification error:', nErr); }
+
+    res.json({ message: 'Quotation rejected successfully' });
+  } catch (error) {
+    console.error('Reject quotation error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Finance approval / draft / rejection of purchase orders
 router.put('/purchase-orders/:id/finance-status', authenticate, authorize('FINANCE_OFFICER'), async (req, res) => {
   try {

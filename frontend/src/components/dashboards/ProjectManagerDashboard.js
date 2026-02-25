@@ -27,13 +27,14 @@ const loadLogoDataUrl = () =>
     .catch(() => null);
 
 const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [projects, setProjects] = useState([]);
   const [materialRequests, setMaterialRequests] = useState([]);
   const [equipmentRequests, setEquipmentRequests] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [sites, setSites] = useState([]);
   const [siteSupervisors, setSiteSupervisors] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -65,7 +66,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
     if (propActiveTab !== undefined && propActiveTab !== activeTab) {
       setActiveTab(propActiveTab);
     }
-  }, [propActiveTab]);
+  }, [propActiveTab, activeTab]);
 
   // Update parent when tab changes internally
   const handleTabChange = (tab) => {
@@ -79,6 +80,8 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
     fetchData();
     const interval = setInterval(fetchData, 60000); // Refresh every minute
     return () => clearInterval(interval);
+    // We intentionally exclude fetchData from deps to avoid recreating the interval.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, token]);
 
   const fetchData = async () => {
@@ -154,6 +157,19 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
         }
       } catch (e) {
         console.log('Purchase orders endpoint not available');
+      }
+
+      // Fetch quotations (for approve/reject)
+      try {
+        const qRes = await fetch('http://localhost:5000/api/procurement/quotations', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          setQuotations(Array.isArray(qData) ? qData : []);
+        }
+      } catch (e) {
+        console.log('Quotations endpoint not available');
       }
 
       // Fetch tasks
@@ -344,6 +360,58 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
     }
   };
 
+  const handleApproveQuotation = async (quotationId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/procurement/quotations/${quotationId}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        fetchData();
+        onRefreshNotifications?.();
+        alert('Quotation approved successfully');
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to approve quotation');
+      }
+    } catch (error) {
+      console.error('Error approving quotation:', error);
+      alert('Error approving quotation');
+    }
+  };
+
+  const handleRejectQuotation = async (quotationId) => {
+    const reason = window.prompt('Rejection reason (optional):');
+    if (reason === null) return; // User cancelled
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/procurement/quotations/${quotationId}/reject`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ rejection_reason: reason || undefined })
+      });
+
+      if (response.ok) {
+        fetchData();
+        onRefreshNotifications?.();
+        alert('Quotation rejected');
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to reject quotation');
+      }
+    } catch (error) {
+      console.error('Error rejecting quotation:', error);
+      alert('Error rejecting quotation');
+    }
+  };
+
   const handleRejectMaterialRequest = async (requestId) => {
     if (!window.confirm('Are you sure you want to reject this material request?')) {
       return;
@@ -496,9 +564,13 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                 <div className="icon">
                   <i className="fas fa-project-diagram"></i>
               </div>
-                <a href="#" className="small-box-footer" onClick={(e) => { e.preventDefault(); handleTabChange('projects'); }}>
+                <button
+                  type="button"
+                  className="small-box-footer btn btn-link p-0 border-0"
+                  onClick={() => handleTabChange('projects')}
+                >
                   More info <i className="fas fa-arrow-circle-right"></i>
-                </a>
+                </button>
               </div>
               </div>
             <div className="col-lg-3 col-6">
@@ -510,9 +582,13 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                 <div className="icon">
                   <i className="fas fa-tasks"></i>
           </div>
-                <a href="#" className="small-box-footer" onClick={(e) => { e.preventDefault(); handleTabChange('projects'); }}>
+                <button
+                  type="button"
+                  className="small-box-footer btn btn-link p-0 border-0"
+                  onClick={() => handleTabChange('projects')}
+                >
                   More info <i className="fas fa-arrow-circle-right"></i>
-                </a>
+                </button>
               </div>
             </div>
             <div className="col-lg-3 col-6">
@@ -524,9 +600,13 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                 <div className="icon">
                   <i className="fas fa-dollar-sign"></i>
                 </div>
-                <a href="#" className="small-box-footer" onClick={(e) => { e.preventDefault(); handleTabChange('projects'); }}>
+                <button
+                  type="button"
+                  className="small-box-footer btn btn-link p-0 border-0"
+                  onClick={() => handleTabChange('projects')}
+                >
                   More info <i className="fas fa-arrow-circle-right"></i>
-                </a>
+                </button>
               </div>
             </div>
             <div className="col-lg-3 col-6">
@@ -538,9 +618,13 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                 <div className="icon">
                   <i className="fas fa-exclamation-triangle"></i>
                 </div>
-                <a href="#" className="small-box-footer" onClick={(e) => { e.preventDefault(); handleTabChange('material-requests'); }}>
+                <button
+                  type="button"
+                  className="small-box-footer btn btn-link p-0 border-0"
+                  onClick={() => handleTabChange('material-requests')}
+                >
                   More info <i className="fas fa-arrow-circle-right"></i>
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -1014,6 +1098,99 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                       You can request payments; Finance Officer approves and pays.
                     </small>
                     {/* A payment request flow/modal could be added here in the future */}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quotation Approvals - Project Manager approves/rejects quotations created by Procurement */}
+          <div className="row mb-3">
+            <div className="col-12">
+              <div className="card card-warning card-outline">
+                <div className="card-header">
+                  <h3 className="card-title">
+                    <i className="fas fa-file-signature mr-2"></i>
+                    Supplier Quotation Approvals
+                  </h3>
+                  <div className="card-tools">
+                    <span className="badge badge-light border">
+                      Pending: <strong>{(Array.isArray(quotations) ? quotations.filter(q => (q.status || '').toUpperCase() === 'PENDING') : []).length}</strong>
+                    </span>
+                  </div>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-hover table-sm mb-0">
+                      <thead className="thead-light">
+                        <tr>
+                          <th>ID</th>
+                          <th>Supplier</th>
+                          <th>Material</th>
+                          <th>Quantity</th>
+                          <th>Unit Price</th>
+                          <th>Total</th>
+                          <th>Date</th>
+                          <th>Validity (days)</th>
+                          <th>Notes</th>
+                          <th>Status</th>
+                          <th style={{ minWidth: 160 }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(quotations) ? quotations : []).map(q => {
+                          const status = (q.status || 'PENDING').toUpperCase();
+                          const isPending = status === 'PENDING';
+                          const statusClass = status === 'ACCEPTED' ? 'success' : status === 'REJECTED' ? 'danger' : 'warning';
+                          const amount = parseFloat(q.total || 0);
+                          const unitPrice = parseFloat(q.unit_price || 0);
+                          return (
+                            <tr key={q.id}>
+                              <td>{q.id}</td>
+                              <td>{q.supplier_name || 'N/A'}</td>
+                              <td>{q.material_name || 'N/A'}</td>
+                              <td>{q.quantity ?? '—'}</td>
+                              <td>${Number.isFinite(unitPrice) ? unitPrice.toLocaleString() : '0'}</td>
+                              <td>${Number.isFinite(amount) ? amount.toLocaleString() : '0'}</td>
+                              <td>{q.quotation_date ? new Date(q.quotation_date).toLocaleDateString() : '—'}</td>
+                              <td>{q.validity_period ?? '—'}</td>
+                              <td style={{ maxWidth: 150 }} className="text-truncate" title={q.notes || ''}>{q.notes || '—'}</td>
+                              <td>
+                                <span className={`badge badge-${statusClass}`}>{status}</span>
+                              </td>
+                              <td>
+                                {isPending && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-success mr-1"
+                                      onClick={() => handleApproveQuotation(q.id)}
+                                    >
+                                      <i className="fas fa-check"></i> Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-danger"
+                                      onClick={() => handleRejectQuotation(q.id)}
+                                    >
+                                      <i className="fas fa-times"></i> Reject
+                                    </button>
+                                  </>
+                                )}
+                                {!isPending && <span className="text-muted small">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {(!Array.isArray(quotations) || quotations.length === 0) && (
+                          <tr>
+                            <td colSpan="11" className="text-center py-4 text-muted">
+                              No supplier quotations found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
