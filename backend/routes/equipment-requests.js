@@ -119,6 +119,23 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), async (req, res) =>
 
     const requestDate = new Date().toISOString().slice(0, 10);
 
+    // Availability check (if equipment_id provided)
+    if (equipment_id) {
+      try {
+        const [eqRows] = await db.execute('SELECT id, name, status FROM equipment WHERE id = ?', [equipment_id]);
+        if (!eqRows || eqRows.length === 0) {
+          return res.status(404).json({ message: 'Equipment not found' });
+        }
+        const eq = eqRows[0];
+        const status = (eq.status || '').toString().toUpperCase();
+        if (status !== 'AVAILABLE') {
+          return res.status(400).json({ message: `Equipment is not available (${eq.name || 'equipment'} is ${status})` });
+        }
+      } catch (eqErr) {
+        console.error('Equipment availability check error:', eqErr);
+      }
+    }
+
     const [result] = await db.execute(
       `INSERT INTO equipment_requests 
         (site_id, requested_by, equipment_id, request_date, status, needed_from, needed_until, description, notes)
@@ -177,12 +194,71 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    await db.execute(
-      `UPDATE equipment_requests 
-       SET status = 'APPROVED', approved_by = ?, approved_at = NOW()
-       WHERE id = ?`,
-      [req.user.id, req.params.id]
-    );
+    const currentStatus = (rows[0].status || 'PENDING').toString().toUpperCase();
+    if (currentStatus !== 'PENDING') {
+      return res.status(400).json({ message: `Equipment request is already ${currentStatus}` });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+    try {
+      // If request specifies equipment_id, ensure it's AVAILABLE and mark it IN_USE (assigned to this site)
+      if (rows[0].equipment_id) {
+        const [eqRows] = await connection.execute(
+          'SELECT id, name, status FROM equipment WHERE id = ? FOR UPDATE',
+          [rows[0].equipment_id]
+        );
+        if (!eqRows || eqRows.length === 0) {
+          await connection.rollback();
+          connection.release();
+          return res.status(404).json({ message: 'Equipment not found' });
+        }
+        const eq = eqRows[0];
+        const status = (eq.status || '').toString().toUpperCase();
+        if (status !== 'AVAILABLE') {
+          await connection.rollback();
+          connection.release();
+          return res.status(400).json({ message: `Equipment is not available (${eq.name || 'equipment'} is ${status})` });
+        }
+        await connection.execute(
+          'UPDATE equipment SET status = ?, site_id = ?, last_used = NOW() WHERE id = ?',
+          ['IN_USE', rows[0].site_id, rows[0].equipment_id]
+        );
+      }
+
+      await connection.execute(
+        `UPDATE equipment_requests 
+         SET status = 'APPROVED', approved_by = ?, approved_at = NOW()
+         WHERE id = ?`,
+        [req.user.id, req.params.id]
+      );
+
+      // Optional: record equipment usage if table exists
+      try {
+        if (rows[0].equipment_id) {
+          await connection.execute(
+            'INSERT INTO equipment_usage (equipment_id, site_id, used_by, start_date, end_date, notes) VALUES (?, ?, ?, ?, ?, ?)',
+            [
+              rows[0].equipment_id,
+              rows[0].site_id,
+              rows[0].requested_by,
+              rows[0].needed_from || rows[0].request_date || new Date().toISOString().slice(0, 10),
+              rows[0].needed_until || null,
+              'Started on equipment request approval'
+            ]
+          );
+        }
+      } catch (usageErr) {
+        console.error('Equipment usage insert error:', usageErr);
+      }
+
+      await connection.commit();
+    } catch (txErr) {
+      await connection.rollback();
+      throw txErr;
+    } finally {
+      connection.release();
+    }
 
     try {
       await db.execute(
@@ -239,6 +315,43 @@ router.put('/:id/reject', authenticate, authorize('PROJECT_MANAGER'), async (req
     res.json({ message: 'Equipment request rejected' });
   } catch (error) {
     console.error('Reject equipment request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mark equipment request as fulfilled (Procurement Officer)
+router.put('/:id/fulfill', authenticate, authorize('PROCUREMENT_OFFICER'), async (req, res) => {
+  try {
+    await ensureEquipmentRequestsTable();
+
+    const [rows] = await db.execute('SELECT id, status, requested_by FROM equipment_requests WHERE id = ?', [req.params.id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Equipment request not found' });
+    }
+    const status = (rows[0].status || 'PENDING').toString().toUpperCase();
+    if (status !== 'APPROVED') {
+      return res.status(400).json({ message: `Only APPROVED requests can be fulfilled (currently ${status})` });
+    }
+
+    await db.execute(
+      `UPDATE equipment_requests
+       SET status = 'FULFILLED'
+       WHERE id = ?`,
+      [req.params.id]
+    );
+
+    try {
+      await db.execute(
+        'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
+        [req.user.id, 'FULFILL_EQUIPMENT_REQUEST', 'equipment_requests', req.params.id, JSON.stringify({ status: 'FULFILLED' })]
+      );
+    } catch (auditError) { console.error('Audit log error (fulfill equipment request):', auditError); }
+
+    try { await createNotification(rows[0].requested_by, 'Your equipment request has been fulfilled'); } catch (nErr) { console.error('Notification error:', nErr); }
+
+    res.json({ message: 'Equipment request fulfilled' });
+  } catch (error) {
+    console.error('Fulfill equipment request error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

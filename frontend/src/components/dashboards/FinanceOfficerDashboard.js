@@ -1000,8 +1000,9 @@ const FinanceOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                   <tbody>
                     {projects.map(project => {
                       const projectExpenses = expenses.filter(e => e.project_id === project.id);
+                      // For budget tracking, treat APPROVED + PAID as committed spend
                       const spent = projectExpenses
-                        .filter(e => e.payment_status === 'PAID')
+                        .filter(e => ['APPROVED', 'PAID'].includes((e.payment_status || '').toString().toUpperCase()))
                         .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
                       const remaining = (parseFloat(project.budget) || 0) - spent;
                       const percentageUsed = (parseFloat(project.budget) || 0) > 0 

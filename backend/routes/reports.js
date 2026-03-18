@@ -101,10 +101,10 @@ async function getSystemAdminReports(reportType, dateFilter) {
           p.status,
           u.first_name as pm_first_name,
           u.last_name as pm_last_name,
-          COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as total_spent,
+          COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) as total_spent,
           COALESCE(SUM(CASE WHEN e.payment_status = 'APPROVED' THEN e.amount ELSE 0 END), 0) as approved_pending,
           COALESCE(SUM(CASE WHEN e.payment_status = 'PENDING' THEN e.amount ELSE 0 END), 0) as pending,
-          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0)) as remaining_budget
+          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0)) as remaining_budget
         FROM projects p
         LEFT JOIN expenses e ON p.id = e.project_id
         LEFT JOIN users u ON p.project_manager_id = u.id
@@ -119,9 +119,9 @@ async function getSystemAdminReports(reportType, dateFilter) {
           p.id,
           p.name,
           p.budget,
-          COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as actual_spent,
-          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0)) as variance,
-          ROUND((COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) / p.budget * 100), 2) as percentage_used
+          COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) as actual_spent,
+          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0)) as variance,
+          ROUND((COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) / p.budget * 100), 2) as percentage_used
         FROM projects p
         LEFT JOIN expenses e ON p.id = e.project_id
         WHERE 1=1 ${dateFilter}
@@ -195,9 +195,9 @@ async function getSystemAdminReports(reportType, dateFilter) {
           p.id,
           p.name,
           p.budget,
-          COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as total_spent,
-          (COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) - p.budget) as overrun_amount,
-          ROUND((COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) / p.budget * 100), 2) as percentage_used
+          COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) as total_spent,
+          (COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) - p.budget) as overrun_amount,
+          ROUND((COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) / p.budget * 100), 2) as percentage_used
         FROM projects p
         LEFT JOIN expenses e ON p.id = e.project_id
         GROUP BY p.id, p.name, p.budget
@@ -291,9 +291,9 @@ async function getProjectManagerReports(reportType, userId, dateFilter, projectI
           p.id,
           p.name,
           p.budget,
-          COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as actual_spent,
-          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0)) as variance,
-          ROUND((COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) / NULLIF(p.budget, 0) * 100), 2) as percentage_used
+          COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) as actual_spent,
+          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0)) as variance,
+          ROUND((COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) / NULLIF(p.budget, 0) * 100), 2) as percentage_used
         FROM projects p
         ${budgetJoin}
         WHERE p.project_manager_id = ? ${projectFilter}
@@ -673,9 +673,9 @@ async function getFinanceOfficerReports(reportType, dateFilter, projectId) {
           p.id,
           p.name as project_name,
           p.budget,
-          COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as total_spent,
-          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0)) as remaining_budget,
-          ROUND((COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) / NULLIF(p.budget, 0) * 100), 2) as percentage_used
+          COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) as total_spent,
+          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0)) as remaining_budget,
+          ROUND((COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0) / NULLIF(p.budget, 0) * 100), 2) as percentage_used
         FROM projects p
         LEFT JOIN expenses e ON p.id = e.project_id ${expenseDateFilterFS}
         WHERE 1=1 ${projectFilterProjects}
@@ -694,7 +694,7 @@ async function getFinanceOfficerReports(reportType, dateFilter, projectId) {
           COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0) as total_spent,
           COALESCE(SUM(CASE WHEN e.payment_status = 'APPROVED' THEN e.amount ELSE 0 END), 0) as approved_pending,
           COALESCE(SUM(CASE WHEN e.payment_status = 'PENDING' THEN e.amount ELSE 0 END), 0) as pending,
-          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status = 'PAID' THEN e.amount ELSE 0 END), 0)) as remaining_budget
+          (p.budget - COALESCE(SUM(CASE WHEN e.payment_status IN ('PAID','APPROVED') THEN e.amount ELSE 0 END), 0)) as remaining_budget
         FROM projects p
         LEFT JOIN expenses e ON p.id = e.project_id ${expenseDateFilterPH}
         WHERE 1=1 ${projectFilterProjects}

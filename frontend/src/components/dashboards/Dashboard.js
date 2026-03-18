@@ -156,6 +156,7 @@ const Dashboard = () => {
       );
     } else if (user?.role === 'PROCUREMENT_OFFICER') {
       items.push(
+        { id: 'requests', icon: 'fa-clipboard-list', label: 'Requests' },
         { id: 'purchase-orders', icon: 'fa-shopping-cart', label: 'Purchase Orders' },
         { id: 'quotations', icon: 'fa-file-alt', label: 'Quotations' },
         { id: 'suppliers', icon: 'fa-truck', label: 'Suppliers' },

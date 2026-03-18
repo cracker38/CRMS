@@ -1130,6 +1130,18 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
     notes: ''
   });
 
+  const selectedMaterial = useMemo(() => {
+    const mid = Number(formData.material_id);
+    return (materials || []).find(m => Number(m.id) === mid) || null;
+  }, [materials, formData.material_id]);
+
+  const requestedQty = parseFloat(formData.quantity || 0);
+  const availableStock = selectedMaterial ? parseFloat(selectedMaterial.current_stock || 0) : null;
+  const hasEnoughStock =
+    selectedMaterial && Number.isFinite(requestedQty) && requestedQty > 0 && Number.isFinite(availableStock)
+      ? availableStock >= requestedQty
+      : true;
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.site_id || !formData.material_id || !formData.quantity) {
@@ -1191,13 +1203,26 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
                     <label>Quantity *</label>
                     <input
                       type="number"
-                      className="form-control"
+                      className={`form-control ${!hasEnoughStock ? 'is-invalid' : ''}`}
                       value={formData.quantity}
                       onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                       required
                       min="0.01"
                       step="0.01"
                     />
+                    {selectedMaterial && Number.isFinite(availableStock) && (
+                      <small className={`form-text ${hasEnoughStock ? 'text-muted' : 'text-danger'}`}>
+                        Available stock: <strong>{availableStock.toFixed(2)}</strong> {selectedMaterial.unit || ''}
+                        {Number.isFinite(requestedQty) && requestedQty > 0 && (
+                          <> — Requested: <strong>{requestedQty.toFixed(2)}</strong></>
+                        )}
+                      </small>
+                    )}
+                    {!hasEnoughStock && (
+                      <div className="invalid-feedback">
+                        Not enough stock for this request.
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="col-md-6">
@@ -1229,7 +1254,7 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Submit Request</button>
+              <button type="submit" className="btn btn-primary" disabled={!hasEnoughStock}>Submit Request</button>
             </div>
           </form>
         </div>

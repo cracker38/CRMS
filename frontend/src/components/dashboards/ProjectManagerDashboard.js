@@ -239,7 +239,10 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
 
       // Calculate stats using the data we already fetched
       const totalBudget = projectsData.reduce((sum, p) => sum + (parseFloat(p.budget) || 0), 0);
-      const spentAmount = expensesData.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+      // "Spent" for budget purposes includes APPROVED + PAID
+      const spentAmount = expensesData
+        .filter(e => ['APPROVED', 'PAID'].includes((e.payment_status || '').toString().toUpperCase()))
+        .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
       // Active = PLANNING, IN_PROGRESS, ON_HOLD (DB schema has no 'ACTIVE')
       const activeProjectStatuses = ['PLANNING', 'IN_PROGRESS', 'ON_HOLD'];
       const activeCount = projectsData.filter(p => activeProjectStatuses.includes(p.status)).length;

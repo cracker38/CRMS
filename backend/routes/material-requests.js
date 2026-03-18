@@ -59,6 +59,25 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR', 'PROJECT_MANAGER'), 
       return res.status(400).json({ message: 'Site, material and quantity are required' });
     }
 
+    const qty = parseFloat(quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      return res.status(400).json({ message: 'Quantity must be a valid number > 0' });
+    }
+
+    // Availability check (stock)
+    const [materials] = await db.execute('SELECT id, name, current_stock FROM materials WHERE id = ?', [material_id]);
+    if (!materials || materials.length === 0) {
+      return res.status(404).json({ message: 'Material not found' });
+    }
+    const material = materials[0];
+    const availableStock = parseFloat(material.current_stock || 0);
+    if (availableStock < qty) {
+      return res.status(400).json({
+        message: `Insufficient stock for ${material.name || 'material'}`,
+        available_stock: availableStock
+      });
+    }
+
     // Optionally verify that the site belongs to the current supervisor / manager
     if (req.user.role === 'SITE_SUPERVISOR') {
       const [sites] = await db.execute(
@@ -72,7 +91,7 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR', 'PROJECT_MANAGER'), 
 
     const [result] = await db.execute(
       'INSERT INTO material_requests (site_id, requested_by, material_id, quantity, priority, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [site_id, req.user.id, material_id, quantity, priority || 'NORMAL', notes || null]
+      [site_id, req.user.id, material_id, qty, priority || 'NORMAL', notes || null]
     );
 
     try {
@@ -114,20 +133,108 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
     if (requests[0].project_manager_id !== req.user.id) {
       return res.status(403).json({ message: 'Access denied' });
     }
-    
-    await db.execute(
-      'UPDATE material_requests SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
-      ['APPROVED', req.user.id, req.params.id]
-    );
-    
-    await db.execute(
-      'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
-      [req.user.id, 'APPROVE_MATERIAL_REQUEST', 'material_requests', req.params.id, JSON.stringify({ status: 'APPROVED' })]
-    );
+
+    // Prevent double approval / handle only PENDING
+    const currentStatus = (requests[0].status || 'PENDING').toString().toUpperCase();
+    if (currentStatus !== 'PENDING') {
+      return res.status(400).json({ message: `Material request is already ${currentStatus}` });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
     try {
-      await createNotification(requests[0].requested_by, 'Your material request has been approved');
-    } catch (nErr) { console.error('Notification error:', nErr); }
-    res.json({ message: 'Material request approved successfully' });
+      // Re-check stock and deduct
+      const [matRows] = await connection.execute(
+        'SELECT id, name, current_stock, unit_price FROM materials WHERE id = ? FOR UPDATE',
+        [requests[0].material_id]
+      );
+      if (!matRows || matRows.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({ message: 'Material not found' });
+      }
+      const mat = matRows[0];
+      const reqQty = parseFloat(requests[0].quantity || 0);
+      const stock = parseFloat(mat.current_stock || 0);
+      if (!Number.isFinite(reqQty) || reqQty <= 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({ message: 'Invalid requested quantity' });
+      }
+      if (stock < reqQty) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          message: `Insufficient stock to approve (${mat.name || 'material'})`,
+          available_stock: stock
+        });
+      }
+
+      await connection.execute(
+        'UPDATE materials SET current_stock = current_stock - ? WHERE id = ?',
+        [reqQty, requests[0].material_id]
+      );
+
+      // Mark request approved
+      await connection.execute(
+        'UPDATE material_requests SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
+        ['APPROVED', req.user.id, req.params.id]
+      );
+
+      // Inventory transaction record (ISSUE)
+      try {
+        await connection.execute(
+          'INSERT INTO inventory_transactions (material_id, transaction_type, quantity, site_id, performed_by, notes) VALUES (?, ?, ?, ?, ?, ?)',
+          [requests[0].material_id, 'ISSUE', reqQty, requests[0].site_id, req.user.id, 'Issued on material request approval']
+        );
+      } catch (invErr) {
+        // If inventory_transactions table differs, don't block approval
+        console.error('Inventory transaction insert error:', invErr);
+      }
+
+      // Create an APPROVED expense so budget/remaining becomes clear immediately
+      const [[projRow]] = await connection.execute(
+        `SELECT p.id as project_id, p.name as project_name
+         FROM sites s
+         LEFT JOIN projects p ON s.project_id = p.id
+         WHERE s.id = ?`,
+        [requests[0].site_id]
+      );
+      const projectId = projRow && projRow.project_id;
+      const unitPrice = parseFloat(mat.unit_price || 0);
+      const amount = (Number.isFinite(unitPrice) ? unitPrice : 0) * reqQty;
+      if (projectId && amount > 0) {
+        await connection.execute(
+          `INSERT INTO expenses (project_id, category, description, amount, expense_date, payment_status, approved_by, created_by)
+           VALUES (?, 'MATERIALS', ?, ?, CURDATE(), 'APPROVED', ?, ?)`,
+          [
+            projectId,
+            `Materials issued: ${mat.name || 'Material'} (Qty ${reqQty}) for site #${requests[0].site_id}`,
+            amount,
+            req.user.id,
+            req.user.id
+          ]
+        );
+      }
+
+      // Audit log
+      try {
+        await connection.execute(
+          'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
+          [req.user.id, 'APPROVE_MATERIAL_REQUEST', 'material_requests', req.params.id, JSON.stringify({ status: 'APPROVED' })]
+        );
+      } catch (auditError) { console.error('Audit log error (material approve):', auditError); }
+
+      await connection.commit();
+    } catch (txErr) {
+      await connection.rollback();
+      throw txErr;
+    } finally {
+      connection.release();
+    }
+
+    try { await createNotification(requests[0].requested_by, 'Your material request has been approved'); } catch (nErr) { console.error('Notification error:', nErr); }
+    res.json({ message: 'Material request approved successfully (stock deducted, budget updated)' });
   } catch (error) {
     console.error('Approve material request error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -171,6 +278,41 @@ router.put('/:id/reject', authenticate, authorize('PROJECT_MANAGER'), async (req
     res.json({ message: 'Material request rejected' });
   } catch (error) {
     console.error('Reject material request error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Mark material request as fulfilled (Procurement Officer)
+router.put('/:id/fulfill', authenticate, authorize('PROCUREMENT_OFFICER'), async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, status, requested_by FROM material_requests WHERE id = ?', [req.params.id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ message: 'Material request not found' });
+    }
+    const status = (rows[0].status || 'PENDING').toString().toUpperCase();
+    if (status !== 'APPROVED') {
+      return res.status(400).json({ message: `Only APPROVED requests can be fulfilled (currently ${status})` });
+    }
+
+    await db.execute(
+      'UPDATE material_requests SET status = ? WHERE id = ?',
+      ['FULFILLED', req.params.id]
+    );
+
+    try {
+      await db.execute(
+        'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
+        [req.user.id, 'FULFILL_MATERIAL_REQUEST', 'material_requests', req.params.id, JSON.stringify({ status: 'FULFILLED' })]
+      );
+    } catch (auditError) { console.error('Audit log error (fulfill material request):', auditError); }
+
+    try {
+      await createNotification(rows[0].requested_by, 'Your material request has been fulfilled (materials issued)');
+    } catch (nErr) { console.error('Notification error:', nErr); }
+
+    res.json({ message: 'Material request fulfilled' });
+  } catch (error) {
+    console.error('Fulfill material request error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

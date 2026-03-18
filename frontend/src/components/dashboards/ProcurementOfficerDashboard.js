@@ -32,6 +32,8 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
   const [suppliers, setSuppliers] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [quotations, setQuotations] = useState([]);
+  const [materialRequests, setMaterialRequests] = useState([]);
+  const [equipmentRequests, setEquipmentRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showPOModal, setShowPOModal] = useState(false);
   const [showQuotationModal, setShowQuotationModal] = useState(false);
@@ -39,6 +41,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
   const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
+  const [editingMaterial, setEditingMaterial] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReportType, setSelectedReportType] = useState(null);
   const [reportData, setReportData] = useState(null);
@@ -150,10 +153,76 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
         // Quotations endpoint may not exist yet
         console.log('Quotations endpoint not available');
       }
+
+      // Fetch material requests (for fulfillment)
+      try {
+        const mrRes = await fetch('http://localhost:5000/api/material-requests', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (mrRes.ok) {
+          const mrData = await mrRes.json();
+          setMaterialRequests(Array.isArray(mrData) ? mrData : []);
+        }
+      } catch (e) {
+        console.log('Material requests endpoint not available');
+      }
+
+      // Fetch equipment requests (for fulfillment)
+      try {
+        const erRes = await fetch('http://localhost:5000/api/equipment-requests', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (erRes.ok) {
+          const erData = await erRes.json();
+          setEquipmentRequests(Array.isArray(erData) ? erData : []);
+        }
+      } catch (e) {
+        console.log('Equipment requests endpoint not available');
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFulfillMaterialRequest = async (requestId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/material-requests/${requestId}/fulfill`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await fetchData();
+        onRefreshNotifications?.();
+        alert('Material request fulfilled');
+      } else {
+        alert(data.message || 'Failed to fulfill material request');
+      }
+    } catch (e) {
+      console.error('Fulfill material request error:', e);
+      alert('Error fulfilling material request');
+    }
+  };
+
+  const handleFulfillEquipmentRequest = async (requestId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/equipment-requests/${requestId}/fulfill`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await fetchData();
+        onRefreshNotifications?.();
+        alert('Equipment request fulfilled');
+      } else {
+        alert(data.message || 'Failed to fulfill equipment request');
+      }
+    } catch (e) {
+      console.error('Fulfill equipment request error:', e);
+      alert('Error fulfilling equipment request');
     }
   };
 
@@ -261,6 +330,40 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
     } catch (error) {
       console.error('Error creating material:', error);
       alert(`Error creating material: ${error.message || 'Network error'}`);
+    }
+  };
+
+  const handleSaveMaterial = async (formData) => {
+    // Decide create vs update based on editingMaterial
+    if (editingMaterial) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/materials/${editingMaterial.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+          await fetchData();
+          setShowMaterialModal(false);
+          setEditingMaterial(null);
+          alert('Material updated successfully');
+        } else {
+          const errorMessage = data.message || data.error || 'Failed to update material';
+          console.error('Material update error:', data);
+          alert(`Error: ${errorMessage}`);
+        }
+      } catch (error) {
+        console.error('Error updating material:', error);
+        alert(`Error updating material: ${error.message || 'Network error'}`);
+      }
+    } else {
+      await handleCreateMaterial(formData);
     }
   };
 
@@ -676,6 +779,143 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
           </div>
         )}
 
+        {activeTab === 'requests' && (
+          <div className="row">
+            <div className="col-lg-6">
+              <div className="card card-warning card-outline">
+                <div className="card-header">
+                  <h3 className="card-title">
+                    <i className="fas fa-clipboard-list mr-2"></i>
+                    Material Requests (Fulfillment)
+                  </h3>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-sm table-hover mb-0">
+                      <thead className="thead-light">
+                        <tr>
+                          <th>ID</th>
+                          <th>Project</th>
+                          <th>Site</th>
+                          <th>Material</th>
+                          <th>Qty</th>
+                          <th>Status</th>
+                          <th style={{ minWidth: 150 }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(materialRequests) ? materialRequests : []).map(r => {
+                          const status = (r.status || 'PENDING').toString().toUpperCase();
+                          const statusClass =
+                            status === 'FULFILLED' ? 'success'
+                              : status === 'APPROVED' ? 'primary'
+                              : status === 'REJECTED' ? 'danger'
+                              : 'warning';
+                          const canFulfill = status === 'APPROVED';
+                          return (
+                            <tr key={r.id}>
+                              <td>{r.id}</td>
+                              <td>{r.project_name || '—'}</td>
+                              <td>{r.site_name || '—'}</td>
+                              <td>{r.material_name || '—'}</td>
+                              <td>{parseFloat(r.quantity || 0).toFixed(2)}</td>
+                              <td><span className={`badge badge-${statusClass}`}>{status}</span></td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-success"
+                                  disabled={!canFulfill}
+                                  title={canFulfill ? 'Mark as fulfilled' : 'Only APPROVED requests can be fulfilled'}
+                                  onClick={() => handleFulfillMaterialRequest(r.id)}
+                                >
+                                  <i className="fas fa-check"></i> Fulfill
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {(!Array.isArray(materialRequests) || materialRequests.length === 0) && (
+                          <tr>
+                            <td colSpan="7" className="text-center text-muted py-4">No material requests found</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-lg-6">
+              <div className="card card-info card-outline">
+                <div className="card-header">
+                  <h3 className="card-title">
+                    <i className="fas fa-tools mr-2"></i>
+                    Equipment Requests (Fulfillment)
+                  </h3>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-sm table-hover mb-0">
+                      <thead className="thead-light">
+                        <tr>
+                          <th>ID</th>
+                          <th>Project</th>
+                          <th>Site</th>
+                          <th>Equipment</th>
+                          <th>Needed</th>
+                          <th>Status</th>
+                          <th style={{ minWidth: 150 }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(Array.isArray(equipmentRequests) ? equipmentRequests : []).map(r => {
+                          const status = (r.status || 'PENDING').toString().toUpperCase();
+                          const statusClass =
+                            status === 'FULFILLED' ? 'success'
+                              : status === 'APPROVED' ? 'primary'
+                              : status === 'REJECTED' ? 'danger'
+                              : 'warning';
+                          const canFulfill = status === 'APPROVED';
+                          const needed = r.needed_from
+                            ? `${new Date(r.needed_from).toLocaleDateString()}${r.needed_until ? ` - ${new Date(r.needed_until).toLocaleDateString()}` : ''}`
+                            : (r.request_date ? new Date(r.request_date).toLocaleDateString() : '—');
+                          return (
+                            <tr key={r.id}>
+                              <td>{r.id}</td>
+                              <td>{r.project_name || '—'}</td>
+                              <td>{r.site_name || '—'}</td>
+                              <td>{r.equipment_name || (r.equipment_id ? `#${r.equipment_id}` : '—')}</td>
+                              <td>{needed}</td>
+                              <td><span className={`badge badge-${statusClass}`}>{status}</span></td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-success"
+                                  disabled={!canFulfill}
+                                  title={canFulfill ? 'Mark as fulfilled' : 'Only APPROVED requests can be fulfilled'}
+                                  onClick={() => handleFulfillEquipmentRequest(r.id)}
+                                >
+                                  <i className="fas fa-check"></i> Fulfill
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {(!Array.isArray(equipmentRequests) || equipmentRequests.length === 0) && (
+                          <tr>
+                            <td colSpan="7" className="text-center text-muted py-4">No equipment requests found</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'purchase-orders' && (
             <div className="card">
               <div className="card-header">
@@ -857,44 +1097,57 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
               <div className="card-header">
                 <h3 className="card-title">Materials</h3>
                 <div className="card-tools">
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowMaterialModal(true)}>
+                  <button className="btn btn-primary btn-sm" onClick={() => { setEditingMaterial(null); setShowMaterialModal(true); }}>
                     <i className="fas fa-plus mr-1"></i> Add Material
                   </button>
                 </div>
               </div>
               <div className="card-body">
                 <table className="table table-bordered table-striped">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Unit</th>
-                  <th>Current Stock</th>
-                  <th>Min Stock Level</th>
-                  <th>Unit Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map(material => (
-                  <tr key={material.id}>
-                    <td>{material.name}</td>
-                    <td>{material.category || 'N/A'}</td>
-                    <td>{material.unit || 'N/A'}</td>
-                    <td>{parseFloat(material.current_stock || 0).toFixed(2)}</td>
-                    <td>{parseFloat(material.min_stock_level || 0).toFixed(2)}</td>
-                    <td>{material.unit_price ? `$${parseFloat(material.unit_price).toFixed(2)}` : 'N/A'}</td>
-                  </tr>
-                ))}
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Unit</th>
+                      <th>Current Stock</th>
+                      <th>Min Stock Level</th>
+                      <th>Unit Price</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {materials.map(material => (
+                      <tr key={material.id}>
+                        <td>{material.name}</td>
+                        <td>{material.category || 'N/A'}</td>
+                        <td>{material.unit || 'N/A'}</td>
+                        <td>{parseFloat(material.current_stock || 0).toFixed(2)}</td>
+                        <td>{parseFloat(material.min_stock_level || 0).toFixed(2)}</td>
+                        <td>{material.unit_price ? `$${parseFloat(material.unit_price).toFixed(2)}` : 'N/A'}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-info"
+                            onClick={() => {
+                              setEditingMaterial(material);
+                              setShowMaterialModal(true);
+                            }}
+                          >
+                            <i className="fas fa-edit"></i> Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                     {materials.length === 0 && (
                       <tr>
-                        <td colSpan="6" className="text-center">No materials found</td>
+                        <td colSpan="7" className="text-center">No materials found</td>
                       </tr>
                     )}
-              </tbody>
-            </table>
-          </div>
-          </div>
-        )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
         {activeTab === 'reports' && (
             <div className="row">
@@ -1011,8 +1264,9 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
       {/* Material Modal */}
       {showMaterialModal && (
         <MaterialModal
-          onClose={() => setShowMaterialModal(false)}
-          onSubmit={handleCreateMaterial}
+          material={editingMaterial}
+          onClose={() => { setShowMaterialModal(false); setEditingMaterial(null); }}
+          onSubmit={handleSaveMaterial}
         />
       )}
 
@@ -1539,15 +1793,15 @@ const SupplierModal = ({ onClose, onSubmit }) => {
 };
 
 // Material Modal Component
-const MaterialModal = ({ onClose, onSubmit }) => {
+const MaterialModal = ({ material, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    unit: '',
-    category: '',
-    current_stock: 0,
-    min_stock_level: 0,
-    unit_price: ''
+    name: material?.name || '',
+    description: material?.description || '',
+    unit: material?.unit || '',
+    category: material?.category || '',
+    current_stock: material?.current_stock ?? 0,
+    min_stock_level: material?.min_stock_level ?? 0,
+    unit_price: material?.unit_price ?? ''
   });
 
   const handleSubmit = (e) => {
@@ -1564,7 +1818,7 @@ const MaterialModal = ({ onClose, onSubmit }) => {
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">
           <div className="modal-header">
-            <h4 className="modal-title">Add New Material</h4>
+            <h4 className="modal-title">{material ? 'Edit Material' : 'Add New Material'}</h4>
             <button type="button" className="close" onClick={onClose}>
               <span>&times;</span>
             </button>
