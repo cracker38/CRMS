@@ -367,6 +367,27 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
     }
   };
 
+  const handleDeleteMaterial = async (material) => {
+    if (!material?.id) return;
+    if (!window.confirm(`Delete material "${material.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/materials/${material.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await fetchData();
+        alert('Material deleted');
+      } else {
+        alert(data.message || 'Failed to delete material');
+      }
+    } catch (e) {
+      console.error('Delete material error:', e);
+      alert('Error deleting material');
+    }
+  };
+
   const handleUpdateDelivery = async (poId, deliveryData) => {
     try {
       const response = await fetch(`http://localhost:5000/api/procurement/purchase-orders/${poId}/delivery`, {
@@ -799,6 +820,8 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                           <th>Site</th>
                           <th>Material</th>
                           <th>Qty</th>
+                          <th>Available</th>
+                          <th>Remaining</th>
                           <th>Status</th>
                           <th style={{ minWidth: 150 }}>Action</th>
                         </tr>
@@ -812,13 +835,31 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                               : status === 'REJECTED' ? 'danger'
                               : 'warning';
                           const canFulfill = status === 'APPROVED';
+                          const availableAfterPending = parseFloat(
+                            r.material_available_after_pending ?? r.available_stock_after_pending ?? 0
+                          );
+                          const qty = parseFloat(r.quantity || 0);
+                          const unitLabel = r.unit || '';
+                          const isPending = status === 'PENDING';
+                          const availableBeforeThis = availableAfterPending + (isPending ? qty : 0);
+                          const remainingAfterThis = isPending ? availableAfterPending : availableAfterPending;
                           return (
                             <tr key={r.id}>
                               <td>{r.id}</td>
                               <td>{r.project_name || '—'}</td>
                               <td>{r.site_name || '—'}</td>
                               <td>{r.material_name || '—'}</td>
-                              <td>{parseFloat(r.quantity || 0).toFixed(2)}</td>
+                              <td>{Number.isFinite(qty) ? qty.toFixed(2) : '0.00'}</td>
+                              <td>
+                                {Number.isFinite(availableBeforeThis)
+                                  ? `${Math.max(0, availableBeforeThis).toFixed(2)} ${unitLabel}`
+                                  : '—'}
+                              </td>
+                              <td>
+                                {Number.isFinite(remainingAfterThis)
+                                  ? `${Math.max(0, remainingAfterThis).toFixed(2)} ${unitLabel}`
+                                  : '—'}
+                              </td>
                               <td><span className={`badge badge-${statusClass}`}>{status}</span></td>
                               <td>
                                 <button
@@ -836,7 +877,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                         })}
                         {(!Array.isArray(materialRequests) || materialRequests.length === 0) && (
                           <tr>
-                            <td colSpan="7" className="text-center text-muted py-4">No material requests found</td>
+                            <td colSpan="9" className="text-center text-muted py-4">No material requests found</td>
                           </tr>
                         )}
                       </tbody>
@@ -1134,6 +1175,13 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                             }}
                           >
                             <i className="fas fa-edit"></i> Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger ml-2"
+                            onClick={() => handleDeleteMaterial(material)}
+                          >
+                            <i className="fas fa-trash"></i> Delete
                           </button>
                         </td>
                       </tr>
@@ -1857,6 +1905,9 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       placeholder="e.g., Construction, Electrical"
                     />
+                    <small className="form-text text-muted">
+                      Example categories: Construction, Electrical
+                    </small>
                   </div>
                 </div>
                 <div className="col-md-6">
@@ -1869,6 +1920,9 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                       placeholder="e.g., kg, pieces, m"
                     />
+                    <small className="form-text text-muted">
+                      Unit example: kg, pieces, m
+                    </small>
                   </div>
                 </div>
               </div>

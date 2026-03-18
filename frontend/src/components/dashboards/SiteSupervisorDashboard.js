@@ -1136,7 +1136,11 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
   }, [materials, formData.material_id]);
 
   const requestedQty = parseFloat(formData.quantity || 0);
-  const availableStock = selectedMaterial ? parseFloat(selectedMaterial.current_stock || 0) : null;
+  const availableStock = selectedMaterial
+    ? parseFloat(
+      selectedMaterial.available_stock_after_pending ?? selectedMaterial.current_stock ?? 0
+    )
+    : null;
   const hasEnoughStock =
     selectedMaterial && Number.isFinite(requestedQty) && requestedQty > 0 && Number.isFinite(availableStock)
       ? availableStock >= requestedQty
@@ -1191,7 +1195,9 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
                     >
                       <option value="">Select Material</option>
                       {materials.map(material => (
-                        <option key={material.id} value={material.id}>{material.name}</option>
+                        <option key={material.id} value={material.id}>
+                          {material.name}{material.unit ? ` (${material.unit})` : ''}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1214,7 +1220,10 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
                       <small className={`form-text ${hasEnoughStock ? 'text-muted' : 'text-danger'}`}>
                         Available stock: <strong>{availableStock.toFixed(2)}</strong> {selectedMaterial.unit || ''}
                         {Number.isFinite(requestedQty) && requestedQty > 0 && (
-                          <> — Requested: <strong>{requestedQty.toFixed(2)}</strong></>
+                          <>
+                            {' '}— Requested: <strong>{requestedQty.toFixed(2)}</strong> {selectedMaterial.unit || ''}
+                            {' '}— Remaining: <strong>{Math.max(0, (availableStock - requestedQty)).toFixed(2)}</strong> {selectedMaterial.unit || ''}
+                          </>
                         )}
                       </small>
                     )}

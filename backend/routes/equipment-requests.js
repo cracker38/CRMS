@@ -174,6 +174,7 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR'), async (req, res) =>
 // Approve equipment request (Project Manager)
 router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (req, res) => {
   try {
+    const { comment } = req.body || {};
     await ensureEquipmentRequestsTable();
 
     // Verify request belongs to a project managed by this PM
@@ -244,7 +245,7 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
               rows[0].requested_by,
               rows[0].needed_from || rows[0].request_date || new Date().toISOString().slice(0, 10),
               rows[0].needed_until || null,
-              'Started on equipment request approval'
+              comment || 'Started on equipment request approval'
             ]
           );
         }

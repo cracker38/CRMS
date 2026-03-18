@@ -340,13 +340,14 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
 
   const handleApproveMaterialRequest = async (requestId) => {
     try {
+      const comment = window.prompt('Approval comment (optional):');
       const response = await fetch(`http://localhost:5000/api/material-requests/${requestId}/approve`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ status: 'APPROVED' })
+        body: JSON.stringify({ comment: comment || undefined })
       });
 
       if (response.ok) {
@@ -416,7 +417,10 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
   };
 
   const handleRejectMaterialRequest = async (requestId) => {
-    if (!window.confirm('Are you sure you want to reject this material request?')) {
+    const reason = window.prompt('Rejection reason (required):');
+    if (reason === null) return;
+    if (!reason.trim()) {
+      alert('Rejection reason is required.');
       return;
     }
 
@@ -427,7 +431,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ status: 'REJECTED' })
+        body: JSON.stringify({ reason: reason.trim() })
       });
 
       if (response.ok) {
@@ -900,6 +904,8 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                       <th>Material</th>
                       <th>Quantity</th>
                       <th>Unit</th>
+                      <th>Available</th>
+                      <th>Remaining</th>
                       <th>Site</th>
                       <th>Requested By</th>
                       <th>Request Date</th>
@@ -917,6 +923,16 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                             <td><strong>{request.material_name || 'N/A'}</strong></td>
                             <td>{request.quantity || 'N/A'}</td>
                             <td>{request.unit || 'N/A'}</td>
+                            <td>{
+                              Number.isFinite(parseFloat(request.material_available_after_pending)) && Number.isFinite(parseFloat(request.quantity))
+                                ? `${(parseFloat(request.material_available_after_pending) + parseFloat(request.quantity)).toFixed(2)} ${request.unit || ''}`
+                                : '—'
+                            }</td>
+                            <td>{
+                              Number.isFinite(parseFloat(request.material_available_after_pending))
+                                ? `${parseFloat(request.material_available_after_pending).toFixed(2)} ${request.unit || ''}`
+                                : '—'
+                            }</td>
                             <td>{request.site_name || 'N/A'}</td>
                             <td>{request.requested_by_name || 'N/A'}</td>
                             <td>{request.created_at ? new Date(request.created_at).toLocaleDateString() : 'N/A'}</td>
@@ -950,7 +966,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                         ))
                     ) : (
                       <tr>
-                        <td colSpan="9" className="text-center py-5">
+                        <td colSpan="11" className="text-center py-5">
                           <i className="fas fa-check-circle fa-3x text-success mb-3"></i>
                           <p className="text-muted">No pending material requests</p>
                         </td>
@@ -1014,9 +1030,14 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                                   className="btn btn-sm btn-success"
                                   onClick={async () => {
                                     try {
+                                      const comment = window.prompt('Approval comment (optional):');
                                       const res = await fetch(`http://localhost:5000/api/equipment-requests/${request.id}/approve`, {
                                         method: 'PUT',
-                                        headers: { 'Authorization': `Bearer ${token}` }
+                                        headers: {
+                                          'Authorization': `Bearer ${token}`,
+                                          'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({ comment: comment || undefined })
                                       });
                                       const data = await res.json().catch(() => ({}));
                                       if (res.ok) {
@@ -1038,7 +1059,12 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                                 <button
                                   className="btn btn-sm btn-danger"
                                   onClick={async () => {
-                                    if (!window.confirm('Are you sure you want to reject this equipment request?')) return;
+                                    const reason = window.prompt('Rejection reason (required):');
+                                    if (reason === null) return;
+                                    if (!reason.trim()) {
+                                      alert('Rejection reason is required.');
+                                      return;
+                                    }
                                     try {
                                       const res = await fetch(`http://localhost:5000/api/equipment-requests/${request.id}/reject`, {
                                         method: 'PUT',
@@ -1046,7 +1072,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                                           'Authorization': `Bearer ${token}`,
                                           'Content-Type': 'application/json'
                                         },
-                                        body: JSON.stringify({ reason: 'Rejected by Project Manager' })
+                                        body: JSON.stringify({ reason: reason.trim() })
                                       });
                                       const data = await res.json().catch(() => ({}));
                                       if (res.ok) {

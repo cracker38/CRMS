@@ -12,6 +12,9 @@ router.get('/', authenticate, async (req, res) => {
       SELECT mr.*, 
         m.name as material_name,
         m.unit,
+        m.current_stock as material_current_stock,
+        COALESCE(pr.reserved_pending, 0) AS material_reserved_pending,
+        (m.current_stock - COALESCE(pr.reserved_pending, 0)) AS material_available_after_pending,
         s.name as site_name,
         p.name as project_name,
         u1.first_name as requested_by_first_name,
@@ -21,6 +24,12 @@ router.get('/', authenticate, async (req, res) => {
         u2.last_name as approved_by_last_name
       FROM material_requests mr
       LEFT JOIN materials m ON mr.material_id = m.id
+      LEFT JOIN (
+        SELECT material_id, COALESCE(SUM(quantity), 0) AS reserved_pending
+        FROM material_requests
+        WHERE status = 'PENDING'
+        GROUP BY material_id
+      ) pr ON pr.material_id = m.id
       LEFT JOIN sites s ON mr.site_id = s.id
       LEFT JOIN projects p ON s.project_id = p.id
       LEFT JOIN users u1 ON mr.requested_by = u1.id
@@ -64,17 +73,28 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR', 'PROJECT_MANAGER'), 
       return res.status(400).json({ message: 'Quantity must be a valid number > 0' });
     }
 
-    // Availability check (stock)
-    const [materials] = await db.execute('SELECT id, name, current_stock FROM materials WHERE id = ?', [material_id]);
+    // Availability check (stock - reserved by other PENDING requests)
+    const [materials] = await db.execute(
+      'SELECT id, name, current_stock, unit FROM materials WHERE id = ?',
+      [material_id]
+    );
     if (!materials || materials.length === 0) {
       return res.status(404).json({ message: 'Material not found' });
     }
     const material = materials[0];
-    const availableStock = parseFloat(material.current_stock || 0);
-    if (availableStock < qty) {
+    const [[reservedAgg]] = await db.execute(
+      'SELECT COALESCE(SUM(quantity), 0) AS reserved_pending FROM material_requests WHERE material_id = ? AND status = "PENDING"',
+      [material_id]
+    );
+    const reservedPending = parseFloat(reservedAgg?.reserved_pending || 0);
+    const availableStockAfterPending = parseFloat(material.current_stock || 0) - reservedPending;
+
+    if (availableStockAfterPending < qty) {
       return res.status(400).json({
-        message: `Insufficient stock for ${material.name || 'material'}`,
-        available_stock: availableStock
+        message: `Insufficient stock for ${material.name || 'material'} (after pending reservations)`,
+        available_stock: availableStockAfterPending,
+        reserved_pending: reservedPending,
+        unit: material.unit || null
       });
     }
 
@@ -117,6 +137,7 @@ router.post('/', authenticate, authorize('SITE_SUPERVISOR', 'PROJECT_MANAGER'), 
 // Approve material request (Project Manager)
 router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (req, res) => {
   try {
+    const { comment } = req.body || {};
     // Verify the request belongs to a project managed by this PM
     const [requests] = await db.execute(`
       SELECT mr.*, p.project_manager_id
@@ -161,12 +182,26 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
         connection.release();
         return res.status(400).json({ message: 'Invalid requested quantity' });
       }
-      if (stock < reqQty) {
+
+      // Ensure stock is sufficient when considering other PENDING reservations
+      const [reservedOtherAgg] = await connection.execute(
+        `SELECT COALESCE(SUM(quantity),0) AS reserved_pending_other
+         FROM material_requests
+         WHERE material_id = ?
+           AND status = 'PENDING'
+           AND id != ?`,
+        [requests[0].material_id, req.params.id]
+      );
+      const reservedOtherPending = parseFloat(reservedOtherAgg?.reserved_pending_other || 0);
+      const availableAfterOtherPending = stock - reservedOtherPending;
+
+      if (availableAfterOtherPending < reqQty) {
         await connection.rollback();
         connection.release();
         return res.status(400).json({
-          message: `Insufficient stock to approve (${mat.name || 'material'})`,
-          available_stock: stock
+          message: `Insufficient reserved stock to approve (${mat.name || 'material'})`,
+          available_stock: availableAfterOtherPending,
+          reserved_pending_other: reservedOtherPending
         });
       }
 
@@ -185,7 +220,7 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
       try {
         await connection.execute(
           'INSERT INTO inventory_transactions (material_id, transaction_type, quantity, site_id, performed_by, notes) VALUES (?, ?, ?, ?, ?, ?)',
-          [requests[0].material_id, 'ISSUE', reqQty, requests[0].site_id, req.user.id, 'Issued on material request approval']
+          [requests[0].material_id, 'ISSUE', reqQty, requests[0].site_id, req.user.id, comment || 'Issued on material request approval']
         );
       } catch (invErr) {
         // If inventory_transactions table differs, don't block approval
@@ -209,7 +244,7 @@ router.put('/:id/approve', authenticate, authorize('PROJECT_MANAGER'), async (re
            VALUES (?, 'MATERIALS', ?, ?, CURDATE(), 'APPROVED', ?, ?)`,
           [
             projectId,
-            `Materials issued: ${mat.name || 'Material'} (Qty ${reqQty}) for site #${requests[0].site_id}`,
+            `Materials issued: ${mat.name || 'Material'} (Qty ${reqQty}) for site #${requests[0].site_id}${comment ? ` - ${comment}` : ''}`,
             amount,
             req.user.id,
             req.user.id
