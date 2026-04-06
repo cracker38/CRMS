@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 21, 2026 at 11:38 PM
+-- Generation Time: Apr 07, 2026 at 01:09 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -244,7 +244,63 @@ INSERT INTO `audit_logs` (`id`, `user_id`, `action`, `table_name`, `record_id`, 
 (172, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-19 11:48:00'),
 (173, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-19 11:58:30'),
 (174, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-21 22:18:18'),
-(175, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-21 22:18:43');
+(175, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-21 22:18:43'),
+(176, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-25 22:21:06'),
+(177, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-25 22:21:23'),
+(178, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-25 22:34:24'),
+(179, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-02-25 22:56:03'),
+(180, 1, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:25:23'),
+(181, 1, 'CREATE_EQUIPMENT', 'equipment', 3, NULL, '{\"name\":\"Crane\",\"type\":\"Heavy\",\"serial_number\":\"Asset\",\"status\":\"AVAILABLE\",\"purchase_date\":\"2026-03-19\",\"purchase_cost\":\"5000\"}', NULL, NULL, '2026-03-18 00:38:31'),
+(182, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:38:57'),
+(183, 4, 'FULFILL_MATERIAL_REQUEST', 'material_requests', 4, NULL, '{\"status\":\"FULFILLED\"}', NULL, NULL, '2026-03-18 00:39:35'),
+(184, 4, 'CREATE_MATERIAL', 'materials', 3, NULL, '{\"name\":\"Hammer\",\"description\":\"Book\",\"unit\":\"20kg\",\"category\":\"Cons\",\"current_stock\":10000,\"min_stock_level\":2000,\"unit_price\":300}', NULL, NULL, '2026-03-18 00:40:54'),
+(185, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:43:22'),
+(186, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:44:03'),
+(187, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:46:13'),
+(188, 4, 'UPDATE_MATERIAL', 'materials', 1, '{\"id\":1,\"name\":\"Hammer\",\"description\":\"I like hammer\",\"unit\":\"20pieces\",\"category\":\"Contruction\",\"current_stock\":\"0.00\",\"min_stock_level\":\"1.00\",\"unit_price\":\"5000.00\",\"created_at\":\"2026-02-09T19:41:56.000Z\",\"updated_at\":\"2026-02-09T19:41:56.000Z\"}', '{\"name\":\"Hammer\",\"description\":\"I like hammer\",\"unit\":\"20pieces\",\"category\":\"Contruction\",\"current_stock\":10000,\"min_stock_level\":\"1.00\",\"unit_price\":\"5000.00\"}', NULL, NULL, '2026-03-18 00:50:52'),
+(189, 4, 'UPDATE_MATERIAL', 'materials', 2, '{\"id\":2,\"name\":\"Screw driver\",\"description\":\"Construction tools\",\"unit\":\"30pieces\",\"category\":\"Construction tools\",\"current_stock\":\"0.00\",\"min_stock_level\":\"30.00\",\"unit_price\":\"2000.00\",\"created_at\":\"2026-02-13T11:27:24.000Z\",\"updated_at\":\"2026-02-13T11:27:24.000Z\"}', '{\"name\":\"Screw driver\",\"description\":\"Construction tools\",\"unit\":\"30pieces\",\"category\":\"Construction tools\",\"current_stock\":70000,\"min_stock_level\":\"30.00\",\"unit_price\":\"2000.00\"}', NULL, NULL, '2026-03-18 00:51:08'),
+(190, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:51:22'),
+(191, 3, 'CREATE_MATERIAL_REQUEST', 'material_requests', 5, NULL, '{\"site_id\":\"2\",\"material_id\":\"1\",\"quantity\":\"2000\",\"priority\":\"HIGH\",\"notes\":\"I like it\"}', NULL, NULL, '2026-03-18 00:53:11'),
+(192, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:53:31'),
+(193, 6, 'APPROVE_MATERIAL_REQUEST', 'material_requests', 5, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-03-18 00:53:44'),
+(194, 6, 'APPROVE_MATERIAL_REQUEST', 'material_requests', 3, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-03-18 00:53:48'),
+(195, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:54:06'),
+(196, 5, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 00:54:27'),
+(197, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 20:16:03'),
+(198, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 20:16:23'),
+(199, 4, 'DELETE_MATERIAL', 'materials', 3, '{\"id\":3,\"name\":\"Hammer\",\"description\":\"Book\",\"unit\":\"20kg\",\"category\":\"Cons\",\"current_stock\":\"10000.00\",\"min_stock_level\":\"2000.00\",\"unit_price\":\"300.00\",\"created_at\":\"2026-03-18T00:40:54.000Z\",\"updated_at\":\"2026-03-18T00:40:54.000Z\"}', NULL, NULL, NULL, '2026-03-18 20:56:52'),
+(200, 4, 'CREATE_MATERIAL', 'materials', 4, NULL, '{\"name\":\"Hammer Yacu\",\"description\":\"I want it\",\"unit\":\"20kg\",\"category\":\"Construction\",\"current_stock\":10000,\"min_stock_level\":3000,\"unit_price\":400}', NULL, NULL, '2026-03-18 21:06:29'),
+(201, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:06:47'),
+(202, 3, 'CREATE_MATERIAL_REQUEST', 'material_requests', 6, NULL, '{\"site_id\":\"2\",\"material_id\":\"4\",\"quantity\":\"2000\",\"priority\":\"HIGH\",\"notes\":\"I want it\"}', NULL, NULL, '2026-03-18 21:21:15'),
+(203, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:21:45'),
+(204, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:22:17'),
+(205, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:32:12'),
+(206, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:40:15'),
+(207, 3, 'CREATE_MATERIAL_REQUEST', 'material_requests', 7, NULL, '{\"site_id\":\"2\",\"material_id\":\"4\",\"quantity\":\"3000\",\"priority\":\"NORMAL\",\"notes\":\"\"}', NULL, NULL, '2026-03-18 21:44:05'),
+(208, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:44:17'),
+(209, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:46:40'),
+(210, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-03-18 21:50:58'),
+(211, 6, 'APPROVE_MATERIAL_REQUEST', 'material_requests', 7, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-03-18 21:51:16'),
+(212, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 20:18:04'),
+(213, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 20:18:24'),
+(214, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 20:18:47'),
+(215, 4, 'CREATE_MATERIAL', 'materials', 5, NULL, '{\"name\":\"Tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":2000,\"min_stock_level\":200,\"unit_price\":500}', NULL, NULL, '2026-04-06 20:29:27'),
+(216, 4, 'CREATE_MATERIAL', 'materials', 6, NULL, '{\"name\":\"tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":2000,\"min_stock_level\":500,\"unit_price\":20}', NULL, NULL, '2026-04-06 21:15:06'),
+(217, 4, 'UPDATE_MATERIAL', 'materials', 6, '{\"id\":6,\"name\":\"tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":\"2000.00\",\"min_stock_level\":\"500.00\",\"unit_price\":\"20.00\",\"created_at\":\"2026-04-06T21:15:06.000Z\",\"updated_at\":\"2026-04-06T21:15:06.000Z\"}', '{\"name\":\"tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":2000,\"min_stock_level\":500,\"unit_price\":20}', NULL, NULL, '2026-04-06 21:23:26'),
+(218, 4, 'UPDATE_MATERIAL', 'materials', 6, '{\"id\":6,\"name\":\"tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":\"2000.00\",\"min_stock_level\":\"500.00\",\"unit_price\":\"20.00\",\"created_at\":\"2026-04-06T21:15:06.000Z\",\"updated_at\":\"2026-04-06T21:15:06.000Z\"}', '{\"name\":\"tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":2000,\"min_stock_level\":500,\"unit_price\":20}', NULL, NULL, '2026-04-06 21:23:26'),
+(219, 4, 'CREATE_MATERIAL', 'materials', 7, NULL, '{\"name\":\"mana\",\"description\":\"manas\",\"unit\":\"kg\",\"category\":\"sdsds\",\"current_stock\":7990,\"min_stock_level\":230,\"unit_price\":220}', NULL, NULL, '2026-04-06 21:24:11'),
+(220, 4, 'DELETE_MATERIAL', 'materials', 5, '{\"id\":5,\"name\":\"Tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":\"2000.00\",\"min_stock_level\":\"200.00\",\"unit_price\":\"500.00\",\"created_at\":\"2026-04-06T20:29:27.000Z\",\"updated_at\":\"2026-04-06T20:29:27.000Z\"}', NULL, NULL, NULL, '2026-04-06 21:27:07'),
+(221, 4, 'DELETE_MATERIAL', 'materials', 7, '{\"id\":7,\"name\":\"mana\",\"description\":\"manas\",\"unit\":\"kg\",\"category\":\"sdsds\",\"current_stock\":\"7990.00\",\"min_stock_level\":\"230.00\",\"unit_price\":\"220.00\",\"created_at\":\"2026-04-06T21:24:11.000Z\",\"updated_at\":\"2026-04-06T21:24:11.000Z\"}', NULL, NULL, NULL, '2026-04-06 21:27:15'),
+(222, 4, 'DELETE_MATERIAL', 'materials', 6, '{\"id\":6,\"name\":\"tests\",\"description\":\"tests\",\"unit\":\"kg\",\"category\":\"Electrical\",\"current_stock\":\"2000.00\",\"min_stock_level\":\"500.00\",\"unit_price\":\"20.00\",\"created_at\":\"2026-04-06T21:15:06.000Z\",\"updated_at\":\"2026-04-06T21:15:06.000Z\"}', NULL, NULL, NULL, '2026-04-06 21:27:25'),
+(223, 4, 'CREATE_MATERIAL', 'materials', 8, NULL, '{\"name\":\"Hammer\",\"description\":\"Hammer\",\"category\":\"Electrical\",\"current_stock\":300000,\"min_stock_level\":200,\"unit_price\":300,\"unit\":\"kg\"}', NULL, NULL, '2026-04-06 21:31:40'),
+(224, 4, 'CREATE_MATERIAL', 'materials', 9, NULL, '{\"name\":\"ana\",\"description\":\"ana\",\"unit\":\"kg\",\"category\":\"ana\",\"current_stock\":200,\"min_stock_level\":10,\"unit_price\":10}', NULL, NULL, '2026-04-06 22:53:58'),
+(225, 3, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 22:54:32'),
+(226, 3, 'CREATE_MATERIAL_REQUEST', 'material_requests', 8, NULL, '{\"site_id\":\"2\",\"material_id\":\"9\",\"quantity\":\"200\",\"priority\":\"HIGH\",\"notes\":\"lod\"}', NULL, NULL, '2026-04-06 22:55:30'),
+(227, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 22:55:53'),
+(228, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 22:59:41'),
+(229, 6, 'APPROVE_MATERIAL_REQUEST', 'material_requests', 8, NULL, '{\"status\":\"APPROVED\"}', NULL, NULL, '2026-04-06 23:01:10'),
+(230, 4, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 23:02:10'),
+(231, 6, 'LOGIN', 'users', NULL, NULL, NULL, NULL, NULL, '2026-04-06 23:03:45');
 
 -- --------------------------------------------------------
 
@@ -298,7 +354,8 @@ CREATE TABLE `equipment` (
 
 INSERT INTO `equipment` (`id`, `name`, `type`, `serial_number`, `status`, `purchase_date`, `purchase_cost`, `hours_used`, `last_used`, `notes`, `created_at`, `site_id`) VALUES
 (1, 'Asset', 'Heavy', 'Asset tag', 'IN_USE', '2026-02-12', 30000.00, 9.00, '2026-02-15 03:33:32', 'i', '2026-02-13 13:23:50', 2),
-(2, 'Crane', 'Light', '209', 'MAINTENANCE', '2026-02-25', 5000.00, 0.00, '2026-02-15 03:40:16', 'n', '2026-02-15 03:38:15', 2);
+(2, 'Crane', 'Light', '209', 'MAINTENANCE', '2026-02-25', 5000.00, 0.00, '2026-02-15 03:40:16', 'n', '2026-02-15 03:38:15', 2),
+(3, 'Crane', 'Heavy', 'Asset', 'AVAILABLE', '2026-03-19', 5000.00, 0.00, NULL, NULL, '2026-03-18 00:38:31', NULL);
 
 -- --------------------------------------------------------
 
@@ -382,8 +439,12 @@ CREATE TABLE `expenses` (
 --
 
 INSERT INTO `expenses` (`id`, `project_id`, `category`, `description`, `amount`, `expense_date`, `payment_status`, `approved_by`, `paid_by`, `invoice_number`, `receipt_path`, `created_by`, `created_at`, `updated_at`) VALUES
-(1, 2, 'SUPPLIES', 'i LIKE IT', 2000.00, '2026-02-13', 'PAID', 5, 5, 'INV1', NULL, 5, '2026-02-13 13:52:00', '2026-02-13 13:52:35'),
-(2, 3, 'EQUIPMENT', 'hjjkj', 1000000.00, '2026-02-15', 'APPROVED', 5, NULL, 'jkj', NULL, 5, '2026-02-15 03:46:37', '2026-02-15 03:47:29');
+(1, 2, 'SUPPLIES', 'i LIKE IT', 2000.00, '2026-02-13', 'APPROVED', 5, 5, 'INV1', NULL, 5, '2026-02-13 13:52:00', '2026-03-18 00:55:46'),
+(2, 3, 'EQUIPMENT', 'hjjkj', 1000000.00, '2026-02-15', 'APPROVED', 5, NULL, 'jkj', NULL, 5, '2026-02-15 03:46:37', '2026-02-15 03:47:29'),
+(3, 2, 'MATERIALS', 'Materials issued: Hammer (Qty 2000) for site #2', 10000000.00, '2026-03-18', 'APPROVED', 6, NULL, NULL, NULL, 6, '2026-03-18 00:53:44', '2026-03-18 00:53:44'),
+(4, 2, 'MATERIALS', 'Materials issued: Screw driver (Qty 30) for site #2', 60000.00, '2026-03-18', 'APPROVED', 6, NULL, NULL, NULL, 6, '2026-03-18 00:53:48', '2026-03-18 00:53:48'),
+(5, 2, 'MATERIALS', 'Materials issued: Hammer Yacu (Qty 3000) for site #2 - I like it', 1200000.00, '2026-03-18', 'APPROVED', 6, NULL, NULL, NULL, 6, '2026-03-18 21:51:16', '2026-03-18 21:51:16'),
+(6, 2, 'MATERIALS', 'Materials issued: ana (Qty 200) for site #2 - i want it', 2000.00, '2026-04-07', 'APPROVED', 6, NULL, NULL, NULL, 6, '2026-04-06 23:01:10', '2026-04-06 23:01:10');
 
 -- --------------------------------------------------------
 
@@ -402,6 +463,16 @@ CREATE TABLE `inventory_transactions` (
   `notes` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+
+--
+-- Dumping data for table `inventory_transactions`
+--
+
+INSERT INTO `inventory_transactions` (`id`, `material_id`, `transaction_type`, `quantity`, `po_id`, `site_id`, `performed_by`, `notes`, `created_at`) VALUES
+(1, 1, 'ISSUE', 2000.00, NULL, 2, 6, 'Issued on material request approval', '2026-03-18 00:53:44'),
+(2, 2, 'ISSUE', 30.00, NULL, 2, 6, 'Issued on material request approval', '2026-03-18 00:53:48'),
+(3, 4, 'ISSUE', 3000.00, NULL, 2, 6, 'I like it', '2026-03-18 21:51:16'),
+(4, 9, 'ISSUE', 200.00, NULL, 2, 6, 'i want it', '2026-04-06 23:01:10');
 
 -- --------------------------------------------------------
 
@@ -427,8 +498,11 @@ CREATE TABLE `materials` (
 --
 
 INSERT INTO `materials` (`id`, `name`, `description`, `unit`, `category`, `current_stock`, `min_stock_level`, `unit_price`, `created_at`, `updated_at`) VALUES
-(1, 'Hammer', 'I like hammer', '20pieces', 'Contruction', 0.00, 1.00, 5000.00, '2026-02-09 19:41:56', '2026-02-09 19:41:56'),
-(2, 'Screw driver', 'Construction tools', '30pieces', 'Construction tools', 0.00, 30.00, 2000.00, '2026-02-13 11:27:24', '2026-02-13 11:27:24');
+(1, 'Hammer', 'I like hammer', '20pieces', 'Contruction', 8000.00, 1.00, 5000.00, '2026-02-09 19:41:56', '2026-03-18 00:53:44'),
+(2, 'Screw driver', 'Construction tools', '30pieces', 'Construction tools', 69970.00, 30.00, 2000.00, '2026-02-13 11:27:24', '2026-03-18 00:53:48'),
+(4, 'Hammer Yacu', 'I want it', '20kg', 'Construction', 7000.00, 3000.00, 400.00, '2026-03-18 21:06:29', '2026-03-18 21:51:16'),
+(8, 'Hammer', 'Hammer', '20kg', 'Electrical', 300000.00, 200.00, 300.00, '2026-04-06 21:31:40', '2026-04-06 22:22:37'),
+(9, 'ana', 'ana', 'kg', 'ana', 0.00, 10.00, 10.00, '2026-04-06 22:53:58', '2026-04-06 23:01:10');
 
 -- --------------------------------------------------------
 
@@ -458,8 +532,12 @@ CREATE TABLE `material_requests` (
 INSERT INTO `material_requests` (`id`, `site_id`, `requested_by`, `material_id`, `quantity`, `status`, `approved_by`, `approved_at`, `notes`, `created_at`, `priority`, `rejection_reason`) VALUES
 (1, 2, 3, 1, 10.00, 'APPROVED', 6, '2026-02-12 16:24:30', 'I like it', '2026-02-09 21:55:42', 'HIGH', NULL),
 (2, 2, 3, 2, 20.00, 'APPROVED', 6, '2026-02-14 23:00:28', 'I like it', '2026-02-13 11:33:08', 'HIGH', NULL),
-(3, 2, 3, 2, 30.00, 'PENDING', NULL, NULL, 'gfhgjhkj', '2026-02-15 04:19:00', 'URGENT', NULL),
-(4, 2, 3, 1, 6.00, 'APPROVED', 6, '2026-02-15 04:31:45', 'gbhjjn', '2026-02-15 04:31:18', 'HIGH', NULL);
+(3, 2, 3, 2, 30.00, 'APPROVED', 6, '2026-03-18 00:53:48', 'gfhgjhkj', '2026-02-15 04:19:00', 'URGENT', NULL),
+(4, 2, 3, 1, 6.00, 'FULFILLED', 6, '2026-02-15 04:31:45', 'gbhjjn', '2026-02-15 04:31:18', 'HIGH', NULL),
+(5, 2, 3, 1, 2000.00, 'APPROVED', 6, '2026-03-18 00:53:44', 'I like it', '2026-03-18 00:53:11', 'HIGH', NULL),
+(6, 2, 3, 4, 2000.00, 'PENDING', NULL, NULL, 'I want it', '2026-03-18 21:21:15', 'HIGH', NULL),
+(7, 2, 3, 4, 3000.00, 'APPROVED', 6, '2026-03-18 21:51:16', NULL, '2026-03-18 21:44:05', 'NORMAL', NULL),
+(8, 2, 3, 9, 200.00, 'APPROVED', 6, '2026-04-06 23:01:10', 'lod', '2026-04-06 22:55:30', 'HIGH', NULL);
 
 -- --------------------------------------------------------
 
@@ -490,9 +568,20 @@ INSERT INTO `notifications` (`id`, `user_id`, `title`, `message`, `type`, `is_re
 (3, NULL, 'Payment reminder', 'Sample notification for Finance Officer', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', 'FINANCE_OFFICER'),
 (4, NULL, 'PO update', 'Sample notification for Procurement Officer', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', 'PROCUREMENT_OFFICER'),
 (5, NULL, 'System broadcast', 'This is a broadcast notification visible to all users', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:10', NULL),
-(6, NULL, 'Admin alert', 'Sample notification for System Admin - track all system activity', 'INFO', 0, NULL, NULL, '2026-02-15 04:25:31', 'SYSTEM_ADMIN'),
+(6, NULL, 'Admin alert', 'Sample notification for System Admin - track all system activity', 'INFO', 1, NULL, NULL, '2026-02-15 04:25:31', 'SYSTEM_ADMIN'),
 (7, NULL, 'New material request: Hammer for BK Arena 1 (pending approval)', 'New material request: Hammer for BK Arena 1 (pending approval)', 'INFO', 1, NULL, NULL, '2026-02-15 04:31:18', 'PROJECT_MANAGER'),
-(8, 3, 'Your material request has been approved', 'Your material request has been approved', 'INFO', 0, NULL, NULL, '2026-02-15 04:31:45', NULL);
+(8, 3, 'Your material request has been approved', 'Your material request has been approved', 'INFO', 1, NULL, NULL, '2026-02-15 04:31:45', NULL),
+(9, 4, 'Your quotation has been approved', 'Your quotation has been approved', 'INFO', 1, NULL, NULL, '2026-02-25 22:54:59', NULL),
+(10, 3, 'Your material request has been fulfilled (materials issued)', 'Your material request has been fulfilled (materials issued)', 'INFO', 0, NULL, NULL, '2026-03-18 00:39:35', NULL),
+(11, NULL, 'New material request: Hammer for BK Arena 1 (pending approval)', 'New material request: Hammer for BK Arena 1 (pending approval)', 'INFO', 1, NULL, NULL, '2026-03-18 00:53:11', 'PROJECT_MANAGER'),
+(12, 3, 'Your material request has been approved', 'Your material request has been approved', 'INFO', 0, NULL, NULL, '2026-03-18 00:53:44', NULL),
+(13, 3, 'Your material request has been approved', 'Your material request has been approved', 'INFO', 0, NULL, NULL, '2026-03-18 00:53:48', NULL),
+(14, 5, 'Your expense has been approved', 'Your expense has been approved', 'INFO', 1, NULL, NULL, '2026-03-18 00:55:46', NULL),
+(15, NULL, 'New material request: Hammer Yacu for BK Arena 1 (pending approval)', 'New material request: Hammer Yacu for BK Arena 1 (pending approval)', 'INFO', 0, NULL, NULL, '2026-03-18 21:21:15', 'PROJECT_MANAGER'),
+(16, NULL, 'New material request: Hammer Yacu for BK Arena 1 (pending approval)', 'New material request: Hammer Yacu for BK Arena 1 (pending approval)', 'INFO', 0, NULL, NULL, '2026-03-18 21:44:05', 'PROJECT_MANAGER'),
+(17, 3, 'Your material request has been approved', 'Your material request has been approved', 'INFO', 0, NULL, NULL, '2026-03-18 21:51:16', NULL),
+(18, NULL, 'New material request: ana for BK Arena 1 (pending approval)', 'New material request: ana for BK Arena 1 (pending approval)', 'INFO', 0, NULL, NULL, '2026-04-06 22:55:30', 'PROJECT_MANAGER'),
+(19, 3, 'Your material request has been approved', 'Your material request has been approved', 'INFO', 0, NULL, NULL, '2026-04-06 23:01:10', NULL);
 
 -- --------------------------------------------------------
 
@@ -600,7 +689,7 @@ CREATE TABLE `quotations` (
 --
 
 INSERT INTO `quotations` (`id`, `supplier_id`, `material_id`, `unit_price`, `valid_until`, `notes`, `created_at`, `quotation_date`, `validity_period`, `status`, `created_by`, `quantity`, `total`) VALUES
-(1, 1, 1, 5000.00, NULL, 'I like it', '2026-02-09 19:49:37', '2026-02-09', 30, 'PENDING', 4, 10.00, 50000.00);
+(1, 1, 1, 5000.00, NULL, 'I like it', '2026-02-09 19:49:37', '2026-02-09', 30, 'ACCEPTED', 4, 10.00, 50000.00);
 
 -- --------------------------------------------------------
 
@@ -914,7 +1003,7 @@ ALTER TABLE `attendance`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=176;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=232;
 
 --
 -- AUTO_INCREMENT for table `employees`
@@ -926,7 +1015,7 @@ ALTER TABLE `employees`
 -- AUTO_INCREMENT for table `equipment`
 --
 ALTER TABLE `equipment`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `equipment_requests`
@@ -944,31 +1033,31 @@ ALTER TABLE `equipment_usage`
 -- AUTO_INCREMENT for table `expenses`
 --
 ALTER TABLE `expenses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `inventory_transactions`
 --
 ALTER TABLE `inventory_transactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `materials`
 --
 ALTER TABLE `materials`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `material_requests`
 --
 ALTER TABLE `material_requests`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `projects`

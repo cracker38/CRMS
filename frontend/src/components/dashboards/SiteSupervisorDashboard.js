@@ -876,6 +876,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                         <tr>
                           <th>Site</th>
                           <th>Project</th>
+                          <th>Equipment</th>
                           <th>Description</th>
                           <th>Needed From</th>
                           <th>Needed Until</th>
@@ -888,7 +889,10 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                             <tr key={er.id}>
                               <td>{er.site_name || 'N/A'}</td>
                               <td>{er.project_name || '-'}</td>
-                              <td>{er.description || 'N/A'}</td>
+                              <td>
+                                <strong>{er.equipment_name || (er.equipment_id ? `#${er.equipment_id}` : '—')}</strong>
+                              </td>
+                              <td>{er.description || '—'}</td>
                               <td>{er.needed_from ? new Date(er.needed_from).toLocaleDateString() : '-'}</td>
                               <td>{er.needed_until ? new Date(er.needed_until).toLocaleDateString() : '-'}</td>
                               <td>
@@ -904,7 +908,7 @@ const SiteSupervisorDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                           ))
                         ) : (
                           <tr>
-                            <td colSpan="6" className="text-center text-muted py-3">No equipment requests yet</td>
+                            <td colSpan="7" className="text-center text-muted py-3">No equipment requests yet</td>
                           </tr>
                         )}
                       </tbody>
@@ -1136,20 +1140,34 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
   }, [materials, formData.material_id]);
 
   const requestedQty = parseFloat(formData.quantity || 0);
+  const onHandStock = selectedMaterial
+    ? parseFloat(selectedMaterial.current_stock ?? 0)
+    : null;
   const availableStock = selectedMaterial
     ? parseFloat(
       selectedMaterial.available_stock_after_pending ?? selectedMaterial.current_stock ?? 0
     )
     : null;
-  const hasEnoughStock =
-    selectedMaterial && Number.isFinite(requestedQty) && requestedQty > 0 && Number.isFinite(availableStock)
-      ? availableStock >= requestedQty
-      : true;
+  const reservedPending = selectedMaterial
+    ? parseFloat(selectedMaterial.reserved_pending ?? 0)
+    : 0;
+  const unitSuffix = (selectedMaterial && selectedMaterial.unit) ? ` ${selectedMaterial.unit}` : '';
+  const qtyOk =
+    selectedMaterial &&
+    Number.isFinite(requestedQty) &&
+    requestedQty > 0 &&
+    Number.isFinite(availableStock);
+  const hasEnoughStock = qtyOk ? availableStock + 1e-6 >= requestedQty : true;
+  const usesAllAvailable = qtyOk && hasEnoughStock && Math.abs(availableStock - requestedQty) < 1e-6;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.site_id || !formData.material_id || !formData.quantity) {
       alert('Please fill in all required fields');
+      return;
+    }
+    if (!hasEnoughStock) {
+      alert('Not enough stock available for this quantity.');
       return;
     }
     onSubmit(formData);
@@ -1217,18 +1235,41 @@ const MaterialRequestModal = ({ sites, materials, onClose, onSubmit }) => {
                       step="0.01"
                     />
                     {selectedMaterial && Number.isFinite(availableStock) && (
-                      <small className={`form-text ${hasEnoughStock ? 'text-muted' : 'text-danger'}`}>
-                        Available stock: <strong>{availableStock.toFixed(2)}</strong> {selectedMaterial.unit || ''}
-                        {Number.isFinite(requestedQty) && requestedQty > 0 && (
-                          <>
-                            {' '}— Requested: <strong>{requestedQty.toFixed(2)}</strong> {selectedMaterial.unit || ''}
-                            {' '}— Remaining: <strong>{Math.max(0, (availableStock - requestedQty)).toFixed(2)}</strong> {selectedMaterial.unit || ''}
-                          </>
+                      <div className="form-text">
+                        <small className={hasEnoughStock ? 'text-muted' : 'text-danger'}>
+                          On hand: <strong>{Number.isFinite(onHandStock) ? onHandStock.toFixed(2) : '—'}</strong>
+                          {reservedPending > 0 && (
+                            <>
+                              {' · '}
+                              Pending holds: <strong>{reservedPending.toFixed(2)}</strong>
+                            </>
+                          )}
+                          {' · '}
+                          Available for you: <strong>{availableStock.toFixed(2)}</strong>
+                          {unitSuffix}
+                          {Number.isFinite(requestedQty) && requestedQty > 0 && (
+                            <>
+                              {' · '}
+                              After this request:{' '}
+                              <strong>{Math.max(0, availableStock - requestedQty).toFixed(2)}</strong>
+                              {unitSuffix}
+                            </>
+                          )}
+                        </small>
+                        {usesAllAvailable && (
+                          <small className="d-block text-info mt-1">
+                            This uses all stock currently available to new requests (you can still submit).
+                          </small>
                         )}
-                      </small>
+                        {!hasEnoughStock && Number.isFinite(requestedQty) && requestedQty > 0 && (
+                          <small className="d-block text-danger mt-1">
+                            Reduce quantity or wait until stock or pending requests change.
+                          </small>
+                        )}
+                      </div>
                     )}
                     {!hasEnoughStock && (
-                      <div className="invalid-feedback">
+                      <div className="invalid-feedback d-block">
                         Not enough stock for this request.
                       </div>
                     )}

@@ -801,6 +801,33 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
         )}
 
         {activeTab === 'requests' && (
+          <div>
+            <div className="row mb-3">
+              <div className="col-12">
+                <div className="card card-secondary card-outline">
+                  <div className="card-body py-3 d-flex align-items-center justify-content-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+                    <div className="d-flex align-items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+                      <span className="badge badge-light border">
+                        Material pending: <strong>{(materialRequests || []).filter(r => (r.status || '').toString().toUpperCase() === 'PENDING').length}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Material approved: <strong>{(materialRequests || []).filter(r => (r.status || '').toString().toUpperCase() === 'APPROVED').length}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Equipment pending: <strong>{(equipmentRequests || []).filter(r => (r.status || '').toString().toUpperCase() === 'PENDING').length}</strong>
+                      </span>
+                      <span className="badge badge-light border">
+                        Equipment approved: <strong>{(equipmentRequests || []).filter(r => (r.status || '').toString().toUpperCase() === 'APPROVED').length}</strong>
+                      </span>
+                    </div>
+                    <small className="text-muted">
+                      Fulfill only after Project Manager approval.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           <div className="row">
             <div className="col-lg-6">
               <div className="card card-warning card-outline">
@@ -809,11 +836,16 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                     <i className="fas fa-clipboard-list mr-2"></i>
                     Material Requests (Fulfillment)
                   </h3>
+                  <div className="card-tools">
+                    <span className="badge badge-light border">
+                      Total: <strong>{Array.isArray(materialRequests) ? materialRequests.length : 0}</strong>
+                    </span>
+                  </div>
                 </div>
                 <div className="card-body p-0">
-                  <div className="table-responsive">
+                  <div className="table-responsive" style={{ maxHeight: 420 }}>
                     <table className="table table-sm table-hover mb-0">
-                      <thead className="thead-light">
+                      <thead className="thead-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                         <tr>
                           <th>ID</th>
                           <th>Project</th>
@@ -845,10 +877,10 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                           const remainingAfterThis = isPending ? availableAfterPending : availableAfterPending;
                           return (
                             <tr key={r.id}>
-                              <td>{r.id}</td>
-                              <td>{r.project_name || '—'}</td>
-                              <td>{r.site_name || '—'}</td>
-                              <td>{r.material_name || '—'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}><strong>{r.id}</strong></td>
+                              <td style={{ whiteSpace: 'nowrap' }} title={r.project_name || ''}>{r.project_name || '—'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }} title={r.site_name || ''}>{r.site_name || '—'}</td>
+                              <td style={{ minWidth: 140 }} title={r.material_name || ''}>{r.material_name || '—'}</td>
                               <td>{Number.isFinite(qty) ? qty.toFixed(2) : '0.00'}</td>
                               <td>
                                 {Number.isFinite(availableBeforeThis)
@@ -860,16 +892,18 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                                   ? `${Math.max(0, remainingAfterThis).toFixed(2)} ${unitLabel}`
                                   : '—'}
                               </td>
-                              <td><span className={`badge badge-${statusClass}`}>{status}</span></td>
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                <span className={`badge badge-${statusClass}`}>{status}</span>
+                              </td>
                               <td>
                                 <button
                                   type="button"
-                                  className="btn btn-sm btn-success"
+                                  className={`btn btn-sm ${canFulfill ? 'btn-success' : 'btn-secondary'}`}
                                   disabled={!canFulfill}
                                   title={canFulfill ? 'Mark as fulfilled' : 'Only APPROVED requests can be fulfilled'}
                                   onClick={() => handleFulfillMaterialRequest(r.id)}
                                 >
-                                  <i className="fas fa-check"></i> Fulfill
+                                  <i className="fas fa-check mr-1"></i> Fulfill
                                 </button>
                               </td>
                             </tr>
@@ -894,11 +928,16 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                     <i className="fas fa-tools mr-2"></i>
                     Equipment Requests (Fulfillment)
                   </h3>
+                  <div className="card-tools">
+                    <span className="badge badge-light border">
+                      Total: <strong>{Array.isArray(equipmentRequests) ? equipmentRequests.length : 0}</strong>
+                    </span>
+                  </div>
                 </div>
                 <div className="card-body p-0">
-                  <div className="table-responsive">
+                  <div className="table-responsive" style={{ maxHeight: 420 }}>
                     <table className="table table-sm table-hover mb-0">
-                      <thead className="thead-light">
+                      <thead className="thead-light" style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                         <tr>
                           <th>ID</th>
                           <th>Project</th>
@@ -923,21 +962,23 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                             : (r.request_date ? new Date(r.request_date).toLocaleDateString() : '—');
                           return (
                             <tr key={r.id}>
-                              <td>{r.id}</td>
-                              <td>{r.project_name || '—'}</td>
-                              <td>{r.site_name || '—'}</td>
-                              <td>{r.equipment_name || (r.equipment_id ? `#${r.equipment_id}` : '—')}</td>
-                              <td>{needed}</td>
-                              <td><span className={`badge badge-${statusClass}`}>{status}</span></td>
+                              <td style={{ whiteSpace: 'nowrap' }}><strong>{r.id}</strong></td>
+                              <td style={{ whiteSpace: 'nowrap' }} title={r.project_name || ''}>{r.project_name || '—'}</td>
+                              <td style={{ whiteSpace: 'nowrap' }} title={r.site_name || ''}>{r.site_name || '—'}</td>
+                              <td style={{ minWidth: 140 }} title={r.equipment_name || ''}>{r.equipment_name || (r.equipment_id ? `#${r.equipment_id}` : '—')}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>{needed}</td>
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                <span className={`badge badge-${statusClass}`}>{status}</span>
+                              </td>
                               <td>
                                 <button
                                   type="button"
-                                  className="btn btn-sm btn-success"
+                                  className={`btn btn-sm ${canFulfill ? 'btn-success' : 'btn-secondary'}`}
                                   disabled={!canFulfill}
                                   title={canFulfill ? 'Mark as fulfilled' : 'Only APPROVED requests can be fulfilled'}
                                   onClick={() => handleFulfillEquipmentRequest(r.id)}
                                 >
-                                  <i className="fas fa-check"></i> Fulfill
+                                  <i className="fas fa-check mr-1"></i> Fulfill
                                 </button>
                               </td>
                             </tr>
@@ -954,6 +995,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                 </div>
               </div>
             </div>
+          </div>
           </div>
         )}
 
@@ -1144,13 +1186,20 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                 </div>
               </div>
               <div className="card-body">
-                <table className="table table-bordered table-striped">
+                <p className="text-muted small mb-2">
+                  <strong>Current Stock</strong> drops when a material request is <strong>approved</strong> (not when it is only submitted).
+                  <strong> Pending</strong> is quantity reserved by open requests; <strong>Available</strong> is what is left for new requests.
+                </p>
+                <div className="table-responsive">
+                <table className="table table-bordered table-striped table-sm">
                   <thead>
                     <tr>
                       <th>Name</th>
                       <th>Category</th>
                       <th>Unit</th>
                       <th>Current Stock</th>
+                      <th>Pending</th>
+                      <th>Available</th>
                       <th>Min Stock Level</th>
                       <th>Unit Price</th>
                       <th>Actions</th>
@@ -1163,6 +1212,14 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                         <td>{material.category || 'N/A'}</td>
                         <td>{material.unit || 'N/A'}</td>
                         <td>{parseFloat(material.current_stock || 0).toFixed(2)}</td>
+                        <td>{parseFloat(material.reserved_pending || 0).toFixed(2)}</td>
+                        <td>
+                          {parseFloat(
+                            material.available_stock_after_pending != null
+                              ? material.available_stock_after_pending
+                              : (parseFloat(material.current_stock || 0) - parseFloat(material.reserved_pending || 0))
+                          ).toFixed(2)}
+                        </td>
                         <td>{parseFloat(material.min_stock_level || 0).toFixed(2)}</td>
                         <td>{material.unit_price ? `$${parseFloat(material.unit_price).toFixed(2)}` : 'N/A'}</td>
                         <td>
@@ -1188,11 +1245,12 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
                     ))}
                     {materials.length === 0 && (
                       <tr>
-                        <td colSpan="7" className="text-center">No materials found</td>
+                        <td colSpan="9" className="text-center">No materials found</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -1312,6 +1370,7 @@ const ProcurementOfficerDashboard = ({ activeTab: propActiveTab, onTabChange, on
       {/* Material Modal */}
       {showMaterialModal && (
         <MaterialModal
+          key={editingMaterial ? `material-${editingMaterial.id}` : 'material-new'}
           material={editingMaterial}
           onClose={() => { setShowMaterialModal(false); setEditingMaterial(null); }}
           onSubmit={handleSaveMaterial}
@@ -1454,7 +1513,9 @@ const POModal = ({ suppliers, materials, onClose, onSubmit }) => {
                       >
                         <option value="">Select Material</option>
                         {materials.map(material => (
-                          <option key={material.id} value={material.id}>{material.name}</option>
+                          <option key={material.id} value={material.id}>
+                            {material.name}{material.unit ? ` (${material.unit})` : ''}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -1582,7 +1643,9 @@ const QuotationModal = ({ suppliers, materials, onClose, onSubmit }) => {
                     >
                       <option value="">Select Material</option>
                       {materials.map(material => (
-                        <option key={material.id} value={material.id}>{material.name}</option>
+                        <option key={material.id} value={material.id}>
+                          {material.name}{material.unit ? ` (${material.unit})` : ''}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1849,8 +1912,25 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
     category: material?.category || '',
     current_stock: material?.current_stock ?? 0,
     min_stock_level: material?.min_stock_level ?? 0,
-    unit_price: material?.unit_price ?? ''
+    unit_price: material?.unit_price ?? 0
   });
+
+  const currentStock = parseFloat(formData.current_stock || 0);
+  const minStock = parseFloat(formData.min_stock_level || 0);
+  const unitPrice = parseFloat(formData.unit_price || 0);
+  const unitLabel = (formData.unit || '').trim();
+  const totalValue =
+    Number.isFinite(currentStock) && Number.isFinite(unitPrice)
+      ? currentStock * unitPrice
+      : 0;
+
+  useEffect(() => {
+    if (!Number.isFinite(currentStock)) return;
+    if (!Number.isFinite(minStock)) return;
+    if (minStock > currentStock) {
+      setFormData((prev) => ({ ...prev, min_stock_level: currentStock }));
+    }
+  }, [currentStock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1858,7 +1938,31 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
       alert('Material name is required');
       return;
     }
-    onSubmit(formData);
+
+    if (!Number.isFinite(currentStock) || currentStock < 0) {
+      alert('Current Stock must be a number >= 0');
+      return;
+    }
+    if (!Number.isFinite(minStock) || minStock < 0) {
+      alert('Min Stock Level must be a number >= 0');
+      return;
+    }
+    if (minStock > currentStock) {
+      alert('Min Stock Level must be less than or equal to Current Stock');
+      return;
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      alert('Unit Price must be a number >= 0');
+      return;
+    }
+
+    onSubmit({
+      ...formData,
+      unit: unitLabel,
+      current_stock: currentStock,
+      min_stock_level: minStock,
+      unit_price: unitPrice
+    });
   };
 
   return (
@@ -1911,17 +2015,17 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
                   </div>
                 </div>
                 <div className="col-md-6">
-                  <div className="form-group">
+                  <div className="form-group mb-0">
                     <label>Unit</label>
                     <input
                       type="text"
                       className="form-control"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      placeholder="e.g., kg, pieces, m"
+                      placeholder="e.g. 20kg, kg, pieces"
                     />
                     <small className="form-text text-muted">
-                      Unit example: kg, pieces, m
+                      Stored exactly as entered (trimmed on save).
                     </small>
                   </div>
                 </div>
@@ -1937,6 +2041,7 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
                       value={formData.current_stock}
                       onChange={(e) => setFormData({ ...formData, current_stock: parseFloat(e.target.value) || 0 })}
                       placeholder="0"
+                      min="0"
                     />
                   </div>
                 </div>
@@ -1946,11 +2051,17 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
                     <input
                       type="number"
                       step="0.01"
-                      className="form-control"
+                      className={`form-control ${Number.isFinite(minStock) && Number.isFinite(currentStock) && minStock > currentStock ? 'is-invalid' : ''}`}
                       value={formData.min_stock_level}
                       onChange={(e) => setFormData({ ...formData, min_stock_level: parseFloat(e.target.value) || 0 })}
                       placeholder="0"
+                      min="0"
                     />
+                    {Number.isFinite(minStock) && Number.isFinite(currentStock) && minStock > currentStock && (
+                      <div className="invalid-feedback">
+                        Must be ≤ Current Stock. Auto-adjusting.
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="col-md-4">
@@ -1961,16 +2072,34 @@ const MaterialModal = ({ material, onClose, onSubmit }) => {
                       step="0.01"
                       className="form-control"
                       value={formData.unit_price}
-                      onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) || '' })}
+                      onChange={(e) => setFormData({ ...formData, unit_price: parseFloat(e.target.value) || 0 })}
                       placeholder="0.00"
+                      min="0"
                     />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-2 p-2 border rounded bg-light">
+                <div className="d-flex align-items-center justify-content-between" style={{ gap: 12, flexWrap: 'wrap' }}>
+                  <div className="text-muted">
+                    Display preview:
+                    <strong className="ml-2">
+                      {Number.isFinite(currentStock) ? currentStock.toFixed(2) : '0.00'}{unitLabel ? ` ${unitLabel}` : ''}
+                    </strong>
+                  </div>
+                  <div className="text-muted">
+                    Total value:
+                    <strong className="ml-2">
+                      ${Number.isFinite(totalValue) ? totalValue.toFixed(2) : '0.00'}
+                    </strong>
                   </div>
                 </div>
               </div>
             </div>
             <div className="modal-footer">
               <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-primary">Create Material</button>
+              <button type="submit" className="btn btn-primary">{material ? 'Save Changes' : 'Create Material'}</button>
             </div>
           </form>
         </div>

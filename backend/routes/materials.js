@@ -4,18 +4,26 @@ const { authenticate, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
+function trimUnit(unit) {
+  const t = (unit || '').toString().trim();
+  return t || null;
+}
+
+function toNonNegativeNumber(value, fallback = 0) {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return n;
+}
+
 // Get all materials
 router.get('/', authenticate, async (req, res) => {
   try {
-    // Check if materials table exists
     try {
       await db.execute('SELECT 1 FROM materials LIMIT 1');
     } catch (tableError) {
-      // Return empty array if table doesn't exist
       return res.json([]);
     }
 
-    // Check if status column exists, if not, select all materials
     let materials;
     try {
       [materials] = await db.execute(
@@ -36,7 +44,6 @@ router.get('/', authenticate, async (req, res) => {
         `
       );
     } catch (statusError) {
-      // If status column doesn't exist, select all materials
       [materials] = await db.execute(
         `
         SELECT
@@ -61,31 +68,27 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Create material (System Admin and Procurement Officer only)
 router.post('/', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'), async (req, res) => {
   try {
     const { name, description, unit, category, current_stock, min_stock_level, unit_price } = req.body;
 
-    // Validate required fields
     if (!name) {
       return res.status(400).json({ message: 'Material name is required' });
     }
 
-    // Insert material
     const [result] = await db.execute(
       'INSERT INTO materials (name, description, unit, category, current_stock, min_stock_level, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [
-        name,
+        (name || '').toString().trim(),
         description || null,
-        unit || null,
-        category || null,
-        current_stock || 0,
-        min_stock_level || 0,
-        unit_price || null
+        trimUnit(unit),
+        category ? category.toString().trim() : null,
+        toNonNegativeNumber(current_stock, 0),
+        toNonNegativeNumber(min_stock_level, 0),
+        unit_price === null || unit_price === undefined || unit_price === '' ? null : toNonNegativeNumber(unit_price, 0)
       ]
     );
 
-    // Log audit
     try {
       await db.execute(
         'INSERT INTO audit_logs (user_id, action, table_name, record_id, new_values) VALUES (?, ?, ?, ?, ?)',
@@ -93,12 +96,11 @@ router.post('/', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'),
       );
     } catch (auditError) {
       console.error('Audit log error:', auditError);
-      // Don't fail the request if audit logging fails
     }
 
-    res.status(201).json({ 
-      message: 'Material created successfully', 
-      materialId: result.insertId 
+    res.status(201).json({
+      message: 'Material created successfully',
+      materialId: result.insertId
     });
   } catch (error) {
     console.error('Create material error:', error);
@@ -106,7 +108,6 @@ router.post('/', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'),
   }
 });
 
-// Update material (System Admin and Procurement Officer only)
 router.put('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'), async (req, res) => {
   try {
     const { name, description, unit, category, current_stock, min_stock_level, unit_price } = req.body;
@@ -130,13 +131,13 @@ router.put('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'
     await db.execute(
       'UPDATE materials SET name = ?, description = ?, unit = ?, category = ?, current_stock = ?, min_stock_level = ?, unit_price = ? WHERE id = ?',
       [
-        newValues.name,
-        newValues.description,
-        newValues.unit,
-        newValues.category,
-        newValues.current_stock,
-        newValues.min_stock_level,
-        newValues.unit_price,
+        (newValues.name || '').toString().trim(),
+        newValues.description || null,
+        trimUnit(newValues.unit),
+        newValues.category ? newValues.category.toString().trim() : null,
+        toNonNegativeNumber(newValues.current_stock, 0),
+        toNonNegativeNumber(newValues.min_stock_level, 0),
+        newValues.unit_price === null || newValues.unit_price === undefined || newValues.unit_price === '' ? null : toNonNegativeNumber(newValues.unit_price, 0),
         req.params.id
       ]
     );
@@ -164,7 +165,6 @@ router.put('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'
   }
 });
 
-// Delete material (System Admin and Procurement Officer only)
 router.delete('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFICER'), async (req, res) => {
   try {
     const [rows] = await db.execute('SELECT * FROM materials WHERE id = ?', [req.params.id]);
@@ -173,7 +173,6 @@ router.delete('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFIC
     }
 
     try {
-      // Prevent deletion if referenced by requests/POs/transactions
       const [[mrRef]] = await db.execute('SELECT COUNT(*) AS c FROM material_requests WHERE material_id = ?', [req.params.id]);
       const [[poiRef]] = await db.execute('SELECT COUNT(*) AS c FROM purchase_order_items WHERE material_id = ?', [req.params.id]);
       const [[qRef]] = await db.execute('SELECT COUNT(*) AS c FROM quotations WHERE material_id = ?', [req.params.id]);
@@ -185,7 +184,7 @@ router.delete('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFIC
         });
       }
     } catch (refErr) {
-      // If some tables don't exist, ignore and attempt delete
+      // ignore
     }
 
     await db.execute('DELETE FROM materials WHERE id = ?', [req.params.id]);
@@ -207,7 +206,3 @@ router.delete('/:id', authenticate, authorize('SYSTEM_ADMIN', 'PROCUREMENT_OFFIC
 });
 
 module.exports = router;
-
-
-
-

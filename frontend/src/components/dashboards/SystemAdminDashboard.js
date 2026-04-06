@@ -2142,7 +2142,10 @@ const MaterialModal = ({ onClose, onSubmit }) => {
       alert('Material name is required');
       return;
     }
-    onSubmit(formData);
+    onSubmit({
+      ...formData,
+      unit: (formData.unit || '').trim()
+    });
   };
 
   return (
@@ -2192,15 +2195,18 @@ const MaterialModal = ({ onClose, onSubmit }) => {
                   </div>
                 </div>
                 <div className="col-md-6">
-                  <div className="form-group">
+                  <div className="form-group mb-0">
                     <label>Unit</label>
                     <input
                       type="text"
                       className="form-control"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      placeholder="e.g., kg, pieces, m"
+                      placeholder="e.g. 20kg, kg, pieces"
                     />
+                    <small className="form-text text-muted">
+                      Stored exactly as entered (trimmed on save).
+                    </small>
                   </div>
                 </div>
               </div>

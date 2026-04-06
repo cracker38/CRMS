@@ -997,6 +997,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                     <tr>
                       <th>Site</th>
                       <th>Project</th>
+                      <th>Equipment</th>
                       <th>Description</th>
                       <th>Requested By</th>
                       <th>Request Date</th>
@@ -1014,7 +1015,10 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                           <tr key={request.id}>
                             <td>{request.site_name || 'N/A'}</td>
                             <td>{request.project_name || 'N/A'}</td>
-                            <td><strong>{request.description || 'N/A'}</strong></td>
+                            <td>
+                              <strong>{request.equipment_name || (request.equipment_id ? `#${request.equipment_id}` : '—')}</strong>
+                            </td>
+                            <td>{request.description || '—'}</td>
                             <td>
                               {(request.requested_by_first_name || '')} {(request.requested_by_last_name || '')}
                             </td>
@@ -1097,7 +1101,7 @@ const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefr
                         ))
                     ) : (
                       <tr>
-                        <td colSpan="9" className="text-center py-5">
+                        <td colSpan="10" className="text-center py-5">
                           <i className="fas fa-check-circle fa-3x text-success mb-3"></i>
                           <p className="text-muted">No pending equipment requests</p>
                         </td>
