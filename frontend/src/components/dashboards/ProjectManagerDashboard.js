@@ -27,7 +27,7 @@ const loadLogoDataUrl = () =>
     .catch(() => null);
 
 const ProjectManagerDashboard = ({ activeTab: propActiveTab, onTabChange, onRefreshNotifications }) => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [activeTab, setActiveTab] = useState(propActiveTab || 'overview');
   const [projects, setProjects] = useState([]);
   const [materialRequests, setMaterialRequests] = useState([]);
@@ -2504,6 +2504,12 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
         return String(val);
       };
 
+      const generatedByName =
+        `${(user?.first_name || '').toString().trim()} ${(user?.last_name || '').toString().trim()}`.trim() ||
+        user?.username ||
+        user?.email ||
+        'User';
+
       // Special handling for Project Summary Report
       if (reportType === 'project-summary' && data.length > 0) {
         data.forEach((project, index) => {
@@ -2518,7 +2524,7 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
-          })}`;
+          })} · By: ${generatedByName}`;
           drawPdfHeader('PROJECT SUMMARY REPORT', genDate, 48);
           yPos = 58;
 
@@ -2727,7 +2733,7 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
           day: 'numeric',
           hour: '2-digit',
           minute: '2-digit'
-        })}`;
+        })} · By: ${generatedByName}`;
         drawPdfHeader(title, genDateGeneric, 42);
         let yPos = 52;
         
@@ -2742,7 +2748,7 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
         }
         
         doc.setFontSize(9);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, margin, yPos);
+        doc.text(`Generated: ${new Date().toLocaleString()} · By: ${generatedByName}`, margin, yPos);
         yPos += 10;
         
         // Table
@@ -2760,7 +2766,7 @@ const ReportModal = ({ reportType, projects, reportData, onClose, onSubmit }) =>
           body: tableData,
           styles: { fontSize: 8, cellPadding: 2 },
           headStyles: { 
-            fillColor: [66, 139, 202], 
+            fillColor: [70, 130, 180], 
             textColor: 255, 
             fontStyle: 'bold' 
           },
